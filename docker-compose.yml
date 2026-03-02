@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    ports:
+      - "4444:4444"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TZ=Europe/Paris
+    restart: unless-stopped

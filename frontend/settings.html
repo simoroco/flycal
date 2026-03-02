@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlyCal — Paramètres</title>
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <span class="logo-icon">✈</span>
+                <span class="logo-text">FlyCal</span>
+            </div>
+            <nav class="nav">
+                <a href="/" class="nav-link">Accueil</a>
+                <a href="/searches.html" class="nav-link">Recherches</a>
+                <a href="/settings.html" class="nav-link active">Paramètres</a>
+            </nav>
+        </div>
+        <div class="header-right">
+            <div class="crawler-badge" id="crawlerBadge">
+                <span class="crawler-dot" id="crawlerDot"></span>
+                <span id="crawlerLabel">Crawler</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="page-content">
+        <h1 class="page-title">Paramètres</h1>
+
+        <section class="settings-section glass-card">
+            <h2>Compagnies aériennes</h2>
+            <div id="airlinesListSettings"></div>
+            <button class="btn-sm btn-accent" onclick="addAirline()" style="margin-top:12px">+ Ajouter une compagnie</button>
+        </section>
+
+        <section class="settings-section glass-card">
+            <h2>Prix de référence</h2>
+            <div class="form-row">
+                <label>Prix idéal (€)</label>
+                <input type="number" id="idealPrice" min="0" step="1" value="100" class="input-field input-sm">
+                <button class="btn-sm btn-accent" onclick="saveIdealPrice()">Enregistrer</button>
+            </div>
+        </section>
+
+        <section class="settings-section glass-card">
+            <h2>Plages horaires</h2>
+            <div id="timeSlotsContainer"></div>
+            <button class="btn-sm btn-accent" onclick="addTimeSlot()" style="margin-top:12px">+ Ajouter une plage</button>
+            <button class="btn-sm btn-primary" onclick="saveTimeSlots()" style="margin-top:12px;margin-left:8px">Enregistrer</button>
+        </section>
+
+        <section class="settings-section glass-card">
+            <h2>Crawler automatique</h2>
+            <div class="form-row">
+                <label>Activation (07h00 & 20h00)</label>
+                <div class="toggle-switch" id="crawlerToggle" onclick="toggleCrawler()">
+                    <div class="toggle-slider"></div>
+                </div>
+                <span id="crawlerStatus" class="status-text">Inactif</span>
+            </div>
+            <div class="crawler-info">
+                <p>Dernière exécution : <span id="lastRun">—</span></p>
+                <p>Prochain déclenchement : <span id="nextRun">—</span></p>
+            </div>
+            <button class="btn-sm btn-accent" onclick="runCrawlerNow()">Lancer maintenant</button>
+            <h3 style="margin-top:20px">Logs récents</h3>
+            <div class="logs-container" id="logsContainer">
+                <p class="text-muted">Chargement...</p>
+            </div>
+        </section>
+
+        <section class="settings-section glass-card">
+            <h2>Email</h2>
+            <div class="form-grid">
+                <div class="form-row">
+                    <label>SMTP Host</label>
+                    <input type="text" id="smtpHost" class="input-field" placeholder="smtp.gmail.com">
+                </div>
+                <div class="form-row">
+                    <label>Port</label>
+                    <input type="number" id="smtpPort" class="input-field input-sm" placeholder="587" value="587">
+                </div>
+                <div class="form-row">
+                    <label>Utilisateur</label>
+                    <input type="text" id="smtpUser" class="input-field" placeholder="user@gmail.com">
+                </div>
+                <div class="form-row">
+                    <label>Mot de passe</label>
+                    <input type="password" id="smtpPassword" class="input-field" placeholder="••••••••">
+                </div>
+                <div class="form-row">
+                    <label>Email destinataire</label>
+                    <input type="email" id="smtpTo" class="input-field" placeholder="dest@email.com">
+                </div>
+                <div class="form-row">
+                    <label>Envoyer un email après chaque crawl</label>
+                    <div class="toggle-switch" id="emailToggle" onclick="toggleEmail()">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px">
+                <button class="btn-sm btn-primary" onclick="saveEmailSettings()">Enregistrer</button>
+                <button class="btn-sm btn-accent" onclick="testSmtp()">Test connexion SMTP</button>
+            </div>
+            <p id="smtpTestResult" class="text-muted" style="margin-top:8px"></p>
+        </section>
+    </main>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/settings.js"></script>
+</body>
+</html>

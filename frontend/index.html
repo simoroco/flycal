@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlyCal — Comparateur de vols</title>
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/calendar.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <span class="logo-icon">✈</span>
+                <span class="logo-text">FlyCal</span>
+            </div>
+            <nav class="nav">
+                <a href="/" class="nav-link active">Accueil</a>
+                <a href="/searches.html" class="nav-link">Recherches</a>
+                <a href="/settings.html" class="nav-link">Paramètres</a>
+            </nav>
+        </div>
+        <div class="header-right">
+            <div class="crawler-badge" id="crawlerBadge">
+                <span class="crawler-dot" id="crawlerDot"></span>
+                <span id="crawlerLabel">Crawler</span>
+            </div>
+        </div>
+    </header>
+
+    <section class="search-bar" id="searchBar">
+        <div class="search-bar-inner">
+            <div class="search-row">
+                <div class="search-field">
+                    <label>Ville de départ</label>
+                    <input type="text" id="originCity" placeholder="Ex: Paris" autocomplete="off">
+                </div>
+                <div class="search-field">
+                    <label>Ville d'arrivée</label>
+                    <input type="text" id="destinationCity" placeholder="Ex: Marrakech" autocomplete="off">
+                </div>
+                <div class="search-field">
+                    <label>Type</label>
+                    <div class="toggle-group">
+                        <button class="toggle-btn active" id="btnOneway" onclick="setTripType('oneway')">Aller simple</button>
+                        <button class="toggle-btn" id="btnRoundtrip" onclick="setTripType('roundtrip')">Aller-retour</button>
+                    </div>
+                </div>
+            </div>
+            <div class="search-row">
+                <div class="search-field">
+                    <label>Date début</label>
+                    <input type="date" id="dateFrom">
+                </div>
+                <div class="search-field">
+                    <label>Date fin</label>
+                    <input type="date" id="dateTo">
+                </div>
+                <div class="search-field airlines-field">
+                    <label>Compagnies</label>
+                    <div class="airlines-checkboxes" id="airlinesCheckboxes"></div>
+                </div>
+                <div class="search-field search-action">
+                    <button class="btn-primary" id="btnSearch" onclick="launchSearch()">
+                        <span id="searchBtnText">Lancer la recherche</span>
+                        <span id="searchLoader" class="loader hidden"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="recap-banner hidden" id="recapBanner">
+        <div class="recap-inner">
+            <div class="recap-flight" id="recapOutbound">
+                <span class="recap-label">Aller</span>
+                <span class="recap-detail" id="recapOutDetail">—</span>
+            </div>
+            <div class="recap-flight" id="recapReturn">
+                <span class="recap-label">Retour</span>
+                <span class="recap-detail" id="recapRetDetail">—</span>
+            </div>
+            <div class="recap-total">
+                <span class="recap-label">Total</span>
+                <span class="recap-price" id="recapTotal">0 €</span>
+            </div>
+        </div>
+    </section>
+
+    <main class="main-content" id="mainContent">
+        <div class="columns">
+            <div class="column" id="colOutbound">
+                <h2 class="column-title">Vols aller</h2>
+                <div class="calendar-container" id="calendarOutbound">
+                    <div class="empty-state" id="emptyOutbound">
+                        <p>Lancez une recherche pour voir les vols disponibles</p>
+                    </div>
+                </div>
+            </div>
+            <div class="column" id="colReturn">
+                <h2 class="column-title">Vols retour</h2>
+                <div class="calendar-container" id="calendarReturn">
+                    <div class="empty-state" id="emptyReturn">
+                        <p>Lancez une recherche pour voir les vols disponibles</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/calendar.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

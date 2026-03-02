@@ -1,0 +1,251 @@
+import json
+import asyncio
+import logging
+from datetime import datetime, date
+from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session, joinedload
+
+from database import (
+    Airline,
+    Flight,
+    PriceHistory,
+    Search,
+    CrawlerLog,
+    get_db,
+)
+
+logger = logging.getLogger("flycal.routers.flights")
+
+router = APIRouter(prefix="/api/flights", tags=["flights"])
+
+
+class SearchRequest(BaseModel):
+    origin_city: str
+    destination_city: str
+    date_from: str
+    date_to: str
+    trip_type: str = "oneway"
+    airlines: List[str] = []
+
+
+class FlightOut(BaseModel):
+    id: int
+    search_id: int
+    airline_id: int
+    airline_name: str
+    airline_fees_fixed: float
+    airline_fees_percent: float
+    direction: str
+    flight_date: str
+    departure_time: str
+    arrival_time: str
+    origin_airport: str
+    destination_airport: str
+    price: float
+    currency: str
+    scraped_at: str
+
+
+class SearchOut(BaseModel):
+    id: int
+    origin_city: str
+    destination_city: str
+    date_from: str
+    date_to: str
+    trip_type: str
+    airlines: list
+    created_at: str
+    is_last: bool
+    flights: List[FlightOut]
+
+
+def _flight_to_dict(f: Flight) -> dict:
+    return {
+        "id": f.id,
+        "search_id": f.search_id,
+        "airline_id": f.airline_id,
+        "airline_name": f.airline.name if f.airline else "",
+        "airline_fees_fixed": f.airline.fees_fixed if f.airline else 0,
+        "airline_fees_percent": f.airline.fees_percent if f.airline else 0,
+        "direction": f.direction,
+        "flight_date": f.flight_date.isoformat() if f.flight_date else "",
+        "departure_time": str(f.departure_time) if f.departure_time else "",
+        "arrival_time": str(f.arrival_time) if f.arrival_time else "",
+        "origin_airport": f.origin_airport,
+        "destination_airport": f.destination_airport,
+        "price": f.price,
+        "currency": f.currency,
+        "scraped_at": f.scraped_at.isoformat() if f.scraped_at else "",
+    }
+
+
+def _search_to_dict(s: Search) -> dict:
+    airlines_list = []
+    try:
+        airlines_list = json.loads(s.airlines)
+    except (json.JSONDecodeError, TypeError):
+        airlines_list = []
+    return {
+        "id": s.id,
+        "origin_city": s.origin_city,
+        "destination_city": s.destination_city,
+        "date_from": s.date_from.isoformat() if s.date_from else "",
+        "date_to": s.date_to.isoformat() if s.date_to else "",
+        "trip_type": s.trip_type,
+        "airlines": airlines_list,
+        "created_at": s.created_at.isoformat() if s.created_at else "",
+        "is_last": s.is_last,
+        "flights": [_flight_to_dict(f) for f in s.flights],
+    }
+
+
+@router.get("/last")
+def get_last_search(db: Session = Depends(get_db)):
+    search = (
+        db.query(Search)
+        .filter(Search.is_last == True)
+        .options(joinedload(Search.flights).joinedload(Flight.airline))
+        .first()
+    )
+    if not search:
+        return {"search": None, "flights": []}
+    return _search_to_dict(search)
+
+
+async def _run_scraping(search_id: int):
+    from database import SessionLocal, Flight, PriceHistory, Airline, Search, CrawlerLog
+    from scraper.ryanair import RyanairScraper
+    from scraper.transavia import TransaviaScraper
+    from scraper.airfrance import AirFranceScraper
+    from scraper.airarabia import AirArabiaScraper
+
+    db = SessionLocal()
+    log_entry = None
+    try:
+        search = db.query(Search).filter(Search.id == search_id).first()
+        if not search:
+            return
+
+        log_entry = CrawlerLog(
+            search_id=search_id,
+            triggered_by="manual",
+            status="running",
+            started_at=datetime.utcnow(),
+        )
+        db.add(log_entry)
+        db.commit()
+
+        requested_airlines = []
+        try:
+            requested_airlines = json.loads(search.airlines)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        airline_records = db.query(Airline).filter(Airline.enabled == True).all()
+        if requested_airlines:
+            airline_records = [a for a in airline_records if a.name in requested_airlines]
+
+        airline_map = {a.name: a for a in airline_records}
+
+        scraper_classes = {
+            "Ryanair": RyanairScraper,
+            "Transavia": TransaviaScraper,
+            "Air France": AirFranceScraper,
+            "Air Arabia": AirArabiaScraper,
+        }
+
+        all_results = []
+        for airline_name, scraper_cls in scraper_classes.items():
+            if airline_name not in airline_map:
+                continue
+            try:
+                scraper = scraper_cls()
+                results = await scraper.search(
+                    origin_city=search.origin_city,
+                    destination_city=search.destination_city,
+                    date_from=search.date_from,
+                    date_to=search.date_to,
+                    trip_type=search.trip_type,
+                )
+                all_results.extend((airline_name, r) for r in results)
+            except Exception as e:
+                logger.error(f"Scraper {airline_name} failed: {e}")
+
+        db.query(Flight).filter(Flight.search_id == search_id).delete()
+        db.commit()
+
+        for airline_name, result in all_results:
+            airline = airline_map.get(airline_name)
+            if not airline:
+                continue
+            flight = Flight(
+                search_id=search_id,
+                airline_id=airline.id,
+                direction=result.direction,
+                flight_date=result.flight_date,
+                departure_time=result.departure_time,
+                arrival_time=result.arrival_time,
+                origin_airport=result.origin_airport,
+                destination_airport=result.destination_airport,
+                price=result.price,
+                currency=result.currency,
+                scraped_at=datetime.utcnow(),
+            )
+            db.add(flight)
+            db.flush()
+
+            ph = PriceHistory(
+                flight_id=flight.id,
+                price=result.price,
+                recorded_at=datetime.utcnow(),
+            )
+            db.add(ph)
+
+        db.commit()
+
+        if log_entry:
+            log_entry.status = "success"
+            log_entry.ended_at = datetime.utcnow()
+            db.commit()
+
+        try:
+            from email_service import send_crawl_recap
+            send_crawl_recap(search_id)
+        except Exception as e:
+            logger.error(f"Email recap failed: {e}")
+
+    except Exception as e:
+        logger.error(f"Scraping failed for search {search_id}: {e}")
+        if log_entry:
+            log_entry.status = "error"
+            log_entry.error_msg = str(e)[:500]
+            log_entry.ended_at = datetime.utcnow()
+            db.commit()
+    finally:
+        db.close()
+
+
+@router.post("/search")
+async def create_search(data: SearchRequest, db: Session = Depends(get_db)):
+    db.query(Search).filter(Search.is_last == True).update({"is_last": False})
+    db.commit()
+
+    search = Search(
+        origin_city=data.origin_city,
+        destination_city=data.destination_city,
+        date_from=date.fromisoformat(data.date_from),
+        date_to=date.fromisoformat(data.date_to),
+        trip_type=data.trip_type,
+        airlines=json.dumps(data.airlines),
+        is_last=True,
+        created_at=datetime.utcnow(),
+    )
+    db.add(search)
+    db.commit()
+    db.refresh(search)
+
+    asyncio.ensure_future(_run_scraping(search.id))
+    return {"search_id": search.id, "status": "scraping_started"}

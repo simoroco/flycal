@@ -1,0 +1,203 @@
+import json
+import logging
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+from database import SessionLocal, Setting, Search, Flight, Airline
+
+logger = logging.getLogger("flycal.email")
+
+
+def _get_settings():
+    db = SessionLocal()
+    try:
+        rows = db.query(Setting).all()
+        settings = {}
+        for row in rows:
+            settings[row.key] = row.value
+        return settings
+    finally:
+        db.close()
+
+
+def send_crawl_recap(search_id: int):
+    settings = _get_settings()
+
+    if settings.get("smtp_send_enabled") != "true":
+        logger.info("Email sending disabled, skipping recap.")
+        return
+
+    host = settings.get("smtp_host", "")
+    port = int(settings.get("smtp_port", "587"))
+    user = settings.get("smtp_user", "")
+    password = settings.get("smtp_password", "")
+    to_email = settings.get("smtp_to", "")
+
+    if not host or not user or not to_email:
+        logger.warning("SMTP not configured, skipping email.")
+        return
+
+    db = SessionLocal()
+    try:
+        search = db.query(Search).filter(Search.id == search_id).first()
+        if not search:
+            return
+
+        flights = (
+            db.query(Flight)
+            .filter(Flight.search_id == search_id)
+            .all()
+        )
+
+        airlines_map = {}
+        for f in flights:
+            airline = db.query(Airline).filter(Airline.id == f.airline_id).first()
+            name = airline.name if airline else "Unknown"
+            if name not in airlines_map:
+                airlines_map[name] = {"outbound": [], "return": []}
+            airlines_map[name][f.direction].append(f)
+
+        outbound_flights = [f for f in flights if f.direction == "outbound"]
+        return_flights = [f for f in flights if f.direction == "return"]
+
+        top_outbound = sorted(outbound_flights, key=lambda f: f.price)[:3]
+        top_return = sorted(return_flights, key=lambda f: f.price)[:3]
+
+        ideal_price = float(settings.get("ideal_price", "100"))
+        time_slots = []
+        try:
+            time_slots = json.loads(settings.get("time_slots", "[]"))
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        def get_time_color(departure_time_str):
+            try:
+                parts = departure_time_str.split(":")
+                h = int(parts[0])
+                m = int(parts[1]) if len(parts) > 1 else 0
+                t_minutes = h * 60 + m
+                for slot in time_slots:
+                    sh, sm = map(int, slot["start"].split(":"))
+                    eh, em = map(int, slot["end"].split(":"))
+                    s_min = sh * 60 + sm
+                    e_min = eh * 60 + em
+                    if e_min <= s_min:
+                        if t_minutes >= s_min or t_minutes < e_min:
+                            return slot["color"]
+                    else:
+                        if s_min <= t_minutes < e_min:
+                            return slot["color"]
+            except Exception:
+                pass
+            return "orange"
+
+        def get_price_color(price):
+            if price <= ideal_price * 0.8:
+                return "green"
+            elif price <= ideal_price * 1.2:
+                return "orange"
+            return "red"
+
+        def composite_color(c1, c2):
+            rank = {"green": 0, "orange": 1, "red": 2}
+            r1, r2 = rank.get(c1, 1), rank.get(c2, 1)
+            if r1 == 0 and r2 == 0:
+                return "green"
+            if r1 == 2 and r2 == 2:
+                return "red"
+            if (r1 == 2 and r2 == 1) or (r1 == 1 and r2 == 2):
+                return "red"
+            return "orange"
+
+        def score_flight(f):
+            tc = get_time_color(str(f.departure_time))
+            pc = get_price_color(f.price)
+            return composite_color(tc, pc)
+
+        green_combos = []
+        for out_f in outbound_flights:
+            if score_flight(out_f) == "green":
+                if search.trip_type == "roundtrip":
+                    for ret_f in return_flights:
+                        if score_flight(ret_f) == "green":
+                            green_combos.append((out_f, ret_f, out_f.price + ret_f.price))
+                else:
+                    green_combos.append((out_f, None, out_f.price))
+        green_combos.sort(key=lambda x: x[2])
+        top_green = green_combos[:3]
+
+        airline_summary = ""
+        for name, dirs in airlines_map.items():
+            airline_summary += f"<li><strong>{name}</strong>: {len(dirs['outbound'])} aller, {len(dirs['return'])} retour</li>"
+
+        top_outbound_html = ""
+        for f in top_outbound:
+            airline = db.query(Airline).filter(Airline.id == f.airline_id).first()
+            aname = airline.name if airline else "?"
+            top_outbound_html += (
+                f"<li>{aname} — {f.flight_date} {f.departure_time}→{f.arrival_time} "
+                f"({f.origin_airport}→{f.destination_airport}) — <strong>{f.price:.0f}€</strong></li>"
+            )
+
+        top_return_html = ""
+        for f in top_return:
+            airline = db.query(Airline).filter(Airline.id == f.airline_id).first()
+            aname = airline.name if airline else "?"
+            top_return_html += (
+                f"<li>{aname} — {f.flight_date} {f.departure_time}→{f.arrival_time} "
+                f"({f.origin_airport}→{f.destination_airport}) — <strong>{f.price:.0f}€</strong></li>"
+            )
+
+        top_green_html = ""
+        for out_f, ret_f, total in top_green:
+            airline_out = db.query(Airline).filter(Airline.id == out_f.airline_id).first()
+            aname_out = airline_out.name if airline_out else "?"
+            line = f"<li>Aller: {aname_out} {out_f.flight_date} {out_f.departure_time}→{out_f.arrival_time} ({out_f.price:.0f}€)"
+            if ret_f:
+                airline_ret = db.query(Airline).filter(Airline.id == ret_f.airline_id).first()
+                aname_ret = airline_ret.name if airline_ret else "?"
+                line += f" + Retour: {aname_ret} {ret_f.flight_date} {ret_f.departure_time}→{ret_f.arrival_time} ({ret_f.price:.0f}€)"
+            line += f" — <strong>Total: {total:.0f}€</strong></li>"
+            top_green_html += line
+
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; background: #1a1a2e; color: #e8e8f0; padding: 20px;">
+            <div style="max-width: 600px; margin: 0 auto; background: rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; border: 1px solid rgba(255,255,255,0.1);">
+                <h1 style="color: #6c63ff;">✈ FlyCal — Résumé du crawl</h1>
+                <p><strong>Trajet:</strong> {search.origin_city} → {search.destination_city}</p>
+                <p><strong>Dates:</strong> {search.date_from} — {search.date_to}</p>
+                <p><strong>Type:</strong> {"Aller-retour" if search.trip_type == "roundtrip" else "Aller simple"}</p>
+                <p><strong>Vols directs trouvés:</strong> {len(flights)}</p>
+                <h2 style="color: #6c63ff;">Par compagnie</h2>
+                <ul>{airline_summary}</ul>
+                <h2 style="color: #6c63ff;">Top 3 — Meilleurs prix (aller)</h2>
+                <ul>{top_outbound_html if top_outbound_html else "<li>Aucun vol aller trouvé</li>"}</ul>
+                {"<h2 style='color: #6c63ff;'>Top 3 — Meilleurs prix (retour)</h2><ul>" + (top_return_html if top_return_html else "<li>Aucun vol retour trouvé</li>") + "</ul>" if search.trip_type == "roundtrip" else ""}
+                <h2 style="color: #6c63ff;">Top 3 — Meilleures combinaisons (score vert)</h2>
+                <ul>{top_green_html if top_green_html else "<li>Aucune combinaison optimale trouvée</li>"}</ul>
+                <hr style="border-color: rgba(255,255,255,0.1);">
+                <p><a href="https://localhost:4444" style="color: #6c63ff;">Ouvrir FlyCal →</a></p>
+            </div>
+        </body>
+        </html>
+        """
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"FlyCal — {search.origin_city} → {search.destination_city} ({len(flights)} vols)"
+        msg["From"] = user
+        msg["To"] = to_email
+        msg.attach(MIMEText(html, "html"))
+
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.starttls()
+            server.login(user, password)
+            server.sendmail(user, [to_email], msg.as_string())
+
+        logger.info(f"Crawl recap email sent to {to_email}")
+
+    except Exception as e:
+        logger.error(f"Failed to send email: {e}")
+    finally:
+        db.close()

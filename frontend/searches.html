@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlyCal — Recherches</title>
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/calendar.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <span class="logo-icon">✈</span>
+                <span class="logo-text">FlyCal</span>
+            </div>
+            <nav class="nav">
+                <a href="/" class="nav-link">Accueil</a>
+                <a href="/searches.html" class="nav-link active">Recherches</a>
+                <a href="/settings.html" class="nav-link">Paramètres</a>
+            </nav>
+        </div>
+        <div class="header-right">
+            <div class="crawler-badge" id="crawlerBadge">
+                <span class="crawler-dot" id="crawlerDot"></span>
+                <span id="crawlerLabel">Crawler</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="page-content">
+        <h1 class="page-title">Historique des recherches</h1>
+        <div class="glass-card">
+            <div class="table-wrapper">
+                <table class="data-table" id="searchesTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Trajet</th>
+                            <th>Plage de dates</th>
+                            <th>Compagnies</th>
+                            <th>Statut</th>
+                            <th>Résultats</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="searchesBody">
+                    </tbody>
+                </table>
+                <div class="empty-state" id="emptySearches">
+                    <p>Aucune recherche effectuée</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay hidden" id="resultsModal">
+            <div class="modal glass-card">
+                <div class="modal-header">
+                    <h2 id="modalTitle">Résultats</h2>
+                    <button class="btn-icon" onclick="closeModal()">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="columns modal-columns">
+                        <div class="column">
+                            <h3>Vols aller</h3>
+                            <div id="modalOutbound" class="calendar-container"></div>
+                        </div>
+                        <div class="column" id="modalReturnCol">
+                            <h3>Vols retour</h3>
+                            <div id="modalReturn" class="calendar-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/calendar.js"></script>
+    <script>
+        let allSearches = [];
+        let searchesSettings = null;
+
+        async function loadSearchesSettings() {
+            try {
+                searchesSettings = await API.getSettings();
+            } catch (e) {
+                searchesSettings = { ideal_price: 100, time_slots: [] };
+            }
+        }
+
+        async function loadSearches() {
+            try {
+                const searches = await API.get('/api/searches');
+                allSearches = searches;
+                renderSearches(searches);
+            } catch (e) {
+                console.error('Failed to load searches:', e);
+            }
+        }
+
+        function renderSearches(searches) {
+            const tbody = document.getElementById('searchesBody');
+            const empty = document.getElementById('emptySearches');
+
+            if (!searches || searches.length === 0) {
+                tbody.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+
+            tbody.innerHTML = searches.map(s => {
+                const created = s.created_at ? new Date(s.created_at).toLocaleDateString('fr-FR', {
+                    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                }) : '—';
+                const airlines = (s.airlines || []).join(', ') || 'Toutes';
+                const statusClass = s.status === 'success' ? 'status-success' :
+                                    s.status === 'running' ? 'status-running' :
+                                    s.status === 'error' ? 'status-error' : 'status-unknown';
+                const statusLabel = s.status === 'success' ? 'Terminé' :
+                                    s.status === 'running' ? 'En cours' :
+                                    s.status === 'error' ? 'Erreur' : '—';
+                return `<tr>
+                    <td>${created}</td>
+                    <td><strong>${s.origin_city}</strong> → <strong>${s.destination_city}</strong></td>
+                    <td>${s.date_from} — ${s.date_to}</td>
+                    <td>${airlines}</td>
+                    <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+                    <td>${s.flight_count || 0} vols</td>
+                    <td class="actions-cell">
+                        <button class="btn-sm btn-accent" onclick="reuseSearch(${s.id})">Réutiliser</button>
+                        <button class="btn-sm btn-secondary" onclick="viewResults(${s.id})">Voir</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function reuseSearch(searchId) {
+            const s = allSearches.find(x => x.id === searchId);
+            if (!s) return;
+            const params = new URLSearchParams({
+                origin: s.origin_city,
+                destination: s.destination_city,
+                date_from: s.date_from,
+                date_to: s.date_to,
+                trip_type: s.trip_type,
+                airlines: (s.airlines || []).join(','),
+                autorun: '1'
+            });
+            window.location.href = '/?' + params.toString();
+        }
+
+        function viewResults(searchId) {
+            const s = allSearches.find(x => x.id === searchId);
+            if (!s) return;
+
+            document.getElementById('modalTitle').textContent =
+                `${s.origin_city} → ${s.destination_city} (${s.date_from} — ${s.date_to})`;
+
+            const outbound = (s.flights || []).filter(f => f.direction === 'outbound');
+            const ret = (s.flights || []).filter(f => f.direction === 'return');
+
+            renderCalendar(document.getElementById('modalOutbound'), outbound, null, () => {}, searchesSettings);
+            renderCalendar(document.getElementById('modalReturn'), ret, null, () => {}, searchesSettings);
+
+            const retCol = document.getElementById('modalReturnCol');
+            retCol.style.display = s.trip_type === 'roundtrip' ? '' : 'none';
+
+            document.getElementById('resultsModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('resultsModal').classList.add('hidden');
+        }
+
+        async function loadCrawlerStatus() {
+            try {
+                const status = await API.get('/api/crawler/status');
+                const dot = document.getElementById('crawlerDot');
+                const label = document.getElementById('crawlerLabel');
+                dot.className = 'crawler-dot ' + (status.enabled ? 'active' : 'inactive');
+                label.textContent = status.enabled ? 'Crawler actif' : 'Crawler inactif';
+            } catch (e) {}
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadSearchesSettings();
+            loadSearches();
+            loadCrawlerStatus();
+        });
+    </script>
+</body>
+</html>
