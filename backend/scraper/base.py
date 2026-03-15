@@ -1,12 +1,35 @@
 import asyncio
+import re
 import random
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import List
 
 logger = logging.getLogger("flycal.scraper")
+
+COOKIE_ACCEPT_SELECTORS = [
+    "button[id*='accept']",
+    "button[id*='cookie']",
+    "button[class*='accept']",
+    "button[class*='consent']",
+    "button[data-testid*='accept']",
+    "button[data-testid*='cookie']",
+    "#onetrust-accept-btn-handler",
+    ".onetrust-accept-btn-handler",
+    "#didomi-notice-agree-button",
+    ".didomi-accept",
+    "#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll",
+    "button:has-text('Accepter')",
+    "button:has-text('Tout accepter')",
+    "button:has-text('Accept all')",
+    "button:has-text('Accept')",
+    "button:has-text('J\\'accepte')",
+    "button:has-text('OK')",
+    "a:has-text('Accepter')",
+    "a:has-text('Tout accepter')",
+]
 
 
 @dataclass
@@ -20,6 +43,45 @@ class FlightResult:
     destination_airport: str  # IATA code
     price: float
     currency: str = "EUR"
+    route_not_served: bool = False
+
+
+def make_route_not_served(airline: str, direction: str, flight_date: date) -> FlightResult:
+    return FlightResult(
+        airline=airline,
+        direction=direction,
+        flight_date=flight_date,
+        departure_time="",
+        arrival_time="",
+        origin_airport="",
+        destination_airport="",
+        price=0.0,
+        currency="EUR",
+        route_not_served=True,
+    )
+
+
+def parse_time(raw: str) -> str:
+    if not raw:
+        return ""
+    raw = raw.strip()
+    if "T" in raw:
+        raw = raw.split("T")[1][:5]
+    m = re.search(r"(\d{1,2})[:\.](\d{2})", raw)
+    if m:
+        return f"{int(m.group(1)):02d}:{m.group(2)}"
+    return raw[:5] if len(raw) >= 5 else raw
+
+
+def parse_price(raw) -> float:
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    if isinstance(raw, str):
+        cleaned = raw.replace("\xa0", "").replace(" ", "").replace(",", ".").replace("€", "").replace("EUR", "")
+        m = re.search(r"(\d+\.?\d*)", cleaned)
+        if m:
+            return float(m.group(1))
+    return 0.0
 
 
 class ScraperBase(ABC):
@@ -42,6 +104,7 @@ class ScraperBase(ABC):
                 "--no-sandbox",
                 "--disable-blink-features=AutomationControlled",
                 "--disable-dev-shm-usage",
+                "--disable-http2",
             ],
         )
         self.context = await self.browser.new_context(
@@ -62,6 +125,19 @@ class ScraperBase(ABC):
             await self._playwright.stop()
         self.browser = None
         self.context = None
+
+    async def _dismiss_cookies(self, page):
+        for selector in COOKIE_ACCEPT_SELECTORS:
+            try:
+                btn = page.locator(selector).first
+                if await btn.is_visible(timeout=600):
+                    await btn.click(timeout=2000)
+                    await asyncio.sleep(0.5)
+                    logger.info(f"[{self.__class__.__name__}] Cookie banner dismissed via {selector}")
+                    return True
+            except Exception:
+                continue
+        return False
 
     async def _handle_captcha(self, page):
         await asyncio.sleep(random.uniform(self.RETRY_DELAY_MIN, self.RETRY_DELAY_MAX))

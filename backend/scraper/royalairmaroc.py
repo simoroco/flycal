@@ -8,49 +8,60 @@ from typing import List
 
 from .base import FlightResult, ScraperBase, make_route_not_served, parse_time, parse_price
 
-logger = logging.getLogger("flycal.scraper.airarabia")
+logger = logging.getLogger("flycal.scraper.royalairmaroc")
 
 CITY_AIRPORT_MAP = {
-    "paris": "ORY",
+    "paris": "CDG",
+    "cdg": "CDG",
+    "orly": "ORY",
     "marseille": "MRS",
     "lyon": "LYS",
     "toulouse": "TLS",
+    "nice": "NCE",
     "bordeaux": "BOD",
     "nantes": "NTE",
-    "nice": "NCE",
     "montpellier": "MPL",
     "lille": "LIL",
+    "strasbourg": "SXB",
+    "porto": "OPO",
+    "lisbonne": "LIS",
+    "lisbon": "LIS",
+    "madrid": "MAD",
+    "barcelone": "BCN",
+    "barcelona": "BCN",
+    "rome": "FCO",
+    "milan": "MXP",
+    "london": "LHR",
+    "londres": "LHR",
+    "amsterdam": "AMS",
     "bruxelles": "BRU",
     "brussels": "BRU",
-    "amsterdam": "AMS",
-    "london": "LGW",
-    "londres": "LGW",
-    "barcelona": "BCN",
-    "barcelone": "BCN",
-    "madrid": "MAD",
+    "berlin": "BER",
     "marrakech": "RAK",
     "fes": "FEZ",
     "fez": "FEZ",
     "tanger": "TNG",
     "tangier": "TNG",
-    "nador": "NDR",
-    "oujda": "OUD",
-    "agadir": "AGA",
     "casablanca": "CMN",
     "rabat": "RBA",
+    "agadir": "AGA",
+    "oujda": "OUD",
+    "nador": "NDR",
     "alger": "ALG",
     "algiers": "ALG",
     "oran": "ORN",
     "tunis": "TUN",
-    "cairo": "CAI",
+    "new york": "JFK",
+    "montreal": "YUL",
+    "dakar": "DSS",
+    "abidjan": "ABJ",
+    "athenes": "ATH",
+    "athens": "ATH",
+    "istanbul": "IST",
+    "dubai": "DXB",
+    "doha": "DOH",
     "le caire": "CAI",
-    "dubai": "SHJ",
-    "sharjah": "SHJ",
-    "abu dhabi": "AUH",
-    "istanbul": "SAW",
-    "amman": "AMM",
-    "alexandrie": "HBE",
-    "alexandria": "HBE",
+    "cairo": "CAI",
 }
 
 
@@ -59,8 +70,8 @@ def _resolve_airport(city: str) -> str:
     return CITY_AIRPORT_MAP.get(normalized, normalized.upper()[:3])
 
 
-class AirArabiaScraper(ScraperBase):
-    AIRLINE = "Air Arabia"
+class RoyalAirMarocScraper(ScraperBase):
+    AIRLINE = "Royal Air Maroc"
 
     async def _init_browser(self):
         from playwright.async_api import async_playwright
@@ -108,7 +119,7 @@ class AirArabiaScraper(ScraperBase):
             page = await self._init_browser()
 
             # Visit homepage first for session/cookies
-            await page.goto("https://www.airarabia.com/", wait_until="domcontentloaded", timeout=30000)
+            await page.goto("https://www.royalairmaroc.com/fr-fr", wait_until="domcontentloaded", timeout=30000)
             await asyncio.sleep(1)
             await self._dismiss_cookies(page)
             await asyncio.sleep(1)
@@ -123,7 +134,8 @@ class AirArabiaScraper(ScraperBase):
                         async def handle_response(response):
                             url = response.url
                             if any(k in url.lower() for k in (
-                                "availability", "search", "flight", "fare", "offer", "/api/"
+                                "availability", "search", "flight", "fare",
+                                "offer", "/api/", "calendar", "schedule"
                             )):
                                 try:
                                     ct = response.headers.get("content-type", "")
@@ -136,12 +148,14 @@ class AirArabiaScraper(ScraperBase):
                         page.on("response", handle_response)
 
                         date_str = current.strftime("%Y-%m-%d")
+                        # Royal Air Maroc search URL pattern
                         search_url = (
-                            f"https://www.airarabia.com/en/booking"
-                            f"?tripType={'R' if trip_type == 'roundtrip' else 'O'}"
-                            f"&origin={dep}&destination={arr}"
-                            f"&departDate={date_str}"
+                            f"https://www.royalairmaroc.com/fr-fr/book"
+                            f"?from={dep}&to={arr}"
+                            f"&departure={date_str}"
                             f"&adults=1&children=0&infants=0"
+                            f"&tripType={'RT' if trip_type == 'roundtrip' else 'OW'}"
+                            f"&cabin=ECONOMY"
                         )
 
                         await page.goto(search_url, wait_until="domcontentloaded", timeout=45000)
@@ -151,8 +165,8 @@ class AirArabiaScraper(ScraperBase):
                         # Wait for results or error
                         try:
                             await page.wait_for_selector(
-                                "[class*='flight'], [class*='result'], [class*='fare'], [class*='journey'], [class*='no-result'], [class*='error']",
-                                timeout=15000,
+                                "[class*='flight'], [class*='result'], [class*='fare'], [class*='offer'], [class*='no-result'], [class*='error']",
+                                timeout=20000,
                             )
                         except Exception:
                             pass
@@ -174,18 +188,18 @@ class AirArabiaScraper(ScraperBase):
                         results.extend(day_results)
 
                     except Exception as e:
-                        logger.error(f"Air Arabia error for {dep}->{arr} on {current}: {e}")
+                        logger.error(f"Royal Air Maroc error for {dep}->{arr} on {current}: {e}")
                     current += timedelta(days=1)
 
                 if not day_had_results:
                     results.append(make_route_not_served(self.AIRLINE, direction, date_from))
 
         except Exception as e:
-            logger.error(f"Air Arabia browser error: {e}")
+            logger.error(f"Royal Air Maroc browser error: {e}")
         finally:
             await self._close_browser()
 
-        logger.info(f"Air Arabia: found {len(results)} flights for {origin_city}->{destination_city}")
+        logger.info(f"Royal Air Maroc: found {len(results)} flights for {origin_city}->{destination_city}")
         return results
 
     def _parse_response(self, data, direction, dep, arr, flight_date) -> List[FlightResult]:
@@ -195,8 +209,9 @@ class AirArabiaScraper(ScraperBase):
                 return results
 
             flights_list = []
-            for key in ("flights", "journeys", "availability", "flightList",
-                        "outbound", "offers", "results", "outboundFlights"):
+            for key in ("flights", "journeys", "itineraries", "boundOffers",
+                        "flightProducts", "offers", "results", "outboundFlights",
+                        "availability", "recommendations"):
                 if key in data:
                     val = data[key]
                     if isinstance(val, list):
@@ -214,40 +229,44 @@ class AirArabiaScraper(ScraperBase):
                 if not isinstance(flight, dict):
                     continue
 
-                segments = flight.get("segments", flight.get("legs", [flight]))
+                segments = flight.get("segments", flight.get("legs", flight.get("flights", [flight])))
                 if isinstance(segments, list) and len(segments) > 1:
-                    continue
+                    continue  # skip connecting flights
 
                 seg = segments[0] if isinstance(segments, list) and segments else flight
 
-                dep_time = parse_time(str(seg.get("departureTime", seg.get("std", ""))))
-                arr_time = parse_time(str(seg.get("arrivalTime", seg.get("sta", ""))))
+                raw_dep = seg.get("departureTime", seg.get("departureDateTime",
+                          seg.get("departure", {}).get("time", "") if isinstance(seg.get("departure"), dict) else seg.get("std", "")))
+                raw_arr = seg.get("arrivalTime", seg.get("arrivalDateTime",
+                          seg.get("arrival", {}).get("time", "") if isinstance(seg.get("arrival"), dict) else seg.get("sta", "")))
+                dep_time = parse_time(str(raw_dep))
+                arr_time = parse_time(str(raw_arr))
 
                 origin_code = dep
                 dest_code = arr
-                for ak in ("departureStation", "origin", "departureAirport"):
+                for ak in ("departureAirport", "origin", "departure", "departureStation"):
                     a = seg.get(ak)
-                    if isinstance(a, str) and len(a) == 3:
+                    if isinstance(a, dict):
+                        origin_code = a.get("iataCode", a.get("code", dep))
+                        break
+                    elif isinstance(a, str) and len(a) == 3:
                         origin_code = a
                         break
-                    elif isinstance(a, dict):
-                        origin_code = a.get("code", a.get("iataCode", dep))
-                        break
-                for ak in ("arrivalStation", "destination", "arrivalAirport"):
+                for ak in ("arrivalAirport", "destination", "arrival", "arrivalStation"):
                     a = seg.get(ak)
-                    if isinstance(a, str) and len(a) == 3:
-                        dest_code = a
+                    if isinstance(a, dict):
+                        dest_code = a.get("iataCode", a.get("code", arr))
                         break
-                    elif isinstance(a, dict):
-                        dest_code = a.get("code", a.get("iataCode", arr))
+                    elif isinstance(a, str) and len(a) == 3:
+                        dest_code = a
                         break
 
                 price = 0.0
-                for pk in ("price", "fare", "totalPrice", "lowestFare", "amount"):
+                for pk in ("price", "totalPrice", "lowestPrice", "fare", "amount"):
                     pv = flight.get(pk, seg.get(pk))
                     if pv is not None:
                         if isinstance(pv, dict):
-                            price = parse_price(pv.get("amount", pv.get("value", 0)))
+                            price = parse_price(pv.get("amount", pv.get("value", pv.get("totalAmount", 0))))
                         else:
                             price = parse_price(pv)
                         break
@@ -265,7 +284,7 @@ class AirArabiaScraper(ScraperBase):
                         currency="EUR",
                     ))
         except Exception as e:
-            logger.error(f"Air Arabia parse error: {e}")
+            logger.error(f"Royal Air Maroc parse error: {e}")
         return results
 
     async def _parse_dom(self, page, direction, dep, arr, flight_date) -> List[FlightResult]:
@@ -274,9 +293,10 @@ class AirArabiaScraper(ScraperBase):
             selectors = [
                 "[class*='flight-result']",
                 "[class*='flight-card']",
+                "[class*='offer-card']",
                 "[class*='fare-card']",
-                "[class*='journey-card']",
                 "[data-testid*='flight']",
+                "[data-testid*='offer']",
                 "section[class*='flight']",
             ]
             cards = []
@@ -287,7 +307,7 @@ class AirArabiaScraper(ScraperBase):
 
             if not cards:
                 cards = await page.query_selector_all(
-                    "[class*='flight'], [class*='result'], [class*='fare'], [class*='journey']"
+                    "[class*='flight'], [class*='result'], [class*='offer'], [class*='fare']"
                 )
 
             for card in cards:
@@ -298,7 +318,7 @@ class AirArabiaScraper(ScraperBase):
                     dep_time = None
                     arr_time = None
                     for line in lines:
-                        if any(c in line for c in ("€", "EUR", "eur", "MAD", "AED")):
+                        if any(c in line for c in ("€", "EUR", "MAD", "eur")):
                             p = parse_price(line)
                             if p > 0:
                                 price = p
@@ -324,5 +344,5 @@ class AirArabiaScraper(ScraperBase):
                 except Exception:
                     continue
         except Exception as e:
-            logger.error(f"Air Arabia DOM parse error: {e}")
+            logger.error(f"Royal Air Maroc DOM parse error: {e}")
         return results

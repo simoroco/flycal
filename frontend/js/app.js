@@ -32,12 +32,17 @@ async function loadAirlinesCheckboxes() {
         const container = document.getElementById('airlinesCheckboxes');
         container.innerHTML = airlines
             .filter(a => a.enabled)
-            .map(a => `
+            .map(a => {
+                const logoHtml = a.logo_url
+                    ? `<img src="${a.logo_url}" alt="" class="airline-cb-logo" onerror="this.style.display='none'">`
+                    : '';
+                return `
                 <label class="airline-checkbox">
                     <input type="checkbox" value="${a.name}" checked>
+                    ${logoHtml}
                     ${a.name}
-                </label>
-            `).join('');
+                </label>`;
+            }).join('');
     } catch (e) {
         console.error('Failed to load airlines:', e);
     }
@@ -154,16 +159,25 @@ function startPolling(searchId) {
     pollingTimer = setInterval(async () => {
         try {
             const data = await API.getLastSearch();
+            const status = await API.getCrawlerStatus();
+            const done = status && status.last_run && status.last_run.status !== 'running';
+
             if (data && data.flights && data.flights.length > 0) {
                 allFlights = data.flights;
+                renderFlights();
+                if (done) {
+                    clearInterval(pollingTimer);
+                    pollingTimer = null;
+                    hidePollingState();
+                    showRouteNotServed(status);
+                }
+            } else if (done) {
+                allFlights = data ? (data.flights || []) : [];
                 renderFlights();
                 clearInterval(pollingTimer);
                 pollingTimer = null;
                 hidePollingState();
-            } else if (data && data.id && data.id !== searchId) {
-                clearInterval(pollingTimer);
-                pollingTimer = null;
-                hidePollingState();
+                showRouteNotServed(status);
             }
         } catch (e) {
             console.error('Polling error:', e);
@@ -255,6 +269,34 @@ function renderFlights() {
     }
 
     updateRecap();
+}
+
+function showRouteNotServed(status) {
+    const container = document.getElementById('routeNotServed');
+    if (!container) {
+        const div = document.createElement('div');
+        div.id = 'routeNotServed';
+        div.className = 'route-not-served-banner';
+        const outContainer = document.getElementById('calendarOutbound');
+        outContainer.parentNode.insertBefore(div, outContainer);
+    }
+    const el = document.getElementById('routeNotServed');
+    if (!status || !status.last_run || !status.last_run.error_msg) {
+        el.innerHTML = '';
+        el.classList.add('hidden');
+        return;
+    }
+    const msg = status.last_run.error_msg;
+    if (msg.startsWith('route_not_served:')) {
+        const airlines = msg.replace('route_not_served:', '').split(',').filter(Boolean);
+        if (airlines.length > 0) {
+            el.innerHTML = `<p class="route-not-served-text">⚠ Aucun vol direct trouvé pour : <strong>${airlines.join(', ')}</strong></p>`;
+            el.classList.remove('hidden');
+            return;
+        }
+    }
+    el.innerHTML = '';
+    el.classList.add('hidden');
 }
 
 function handleFlightClick(flightId, direction) {

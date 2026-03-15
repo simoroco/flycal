@@ -53,8 +53,16 @@ function renderAirlines() {
         return;
     }
 
-    container.innerHTML = settingsAirlines.map(a => `
+    container.innerHTML = settingsAirlines.map(a => {
+        const logoSrc = a.logo_url || '';
+        const logoPreview = logoSrc
+            ? `<img src="${logoSrc}" alt="${a.name}" class="airline-logo-preview" onerror="this.style.display='none'">`
+            : `<div class="airline-logo-placeholder">${(a.name || '??').substring(0,2).toUpperCase()}</div>`;
+        return `
         <div class="airline-row" data-id="${a.id}">
+            <div class="airline-logo-cell">
+                ${logoPreview}
+            </div>
             <input type="text" class="input-field" value="${a.name}" data-field="name" placeholder="Nom">
             <label style="font-size:0.8rem;color:var(--text-muted)">Frais fixes (€)</label>
             <input type="number" class="input-field input-sm" value="${a.fees_fixed}" data-field="fees_fixed" step="0.01" min="0">
@@ -63,10 +71,17 @@ function renderAirlines() {
             <div class="toggle-switch ${a.enabled ? 'active' : ''}" onclick="toggleAirlineEnabled(${a.id}, this)">
                 <div class="toggle-slider"></div>
             </div>
+            <div class="airline-logo-actions">
+                <input type="text" class="input-field input-sm" value="${logoSrc}" data-field="logo_url" placeholder="URL du logo">
+                <label class="btn-sm btn-secondary logo-upload-btn">
+                    📁
+                    <input type="file" accept="image/*" style="display:none" onchange="uploadLogo(${a.id}, this)">
+                </label>
+            </div>
             <button class="btn-sm btn-accent" onclick="saveAirline(${a.id})">Sauver</button>
             <button class="btn-sm btn-danger" onclick="deleteAirline(${a.id})">Supprimer</button>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 async function toggleAirlineEnabled(id, el) {
@@ -89,12 +104,30 @@ async function saveAirline(id) {
     const name = row.querySelector('[data-field="name"]').value.trim();
     const fees_fixed = parseFloat(row.querySelector('[data-field="fees_fixed"]').value) || 0;
     const fees_percent = parseFloat(row.querySelector('[data-field="fees_percent"]').value) || 0;
+    const logo_url = row.querySelector('[data-field="logo_url"]')?.value.trim() || null;
 
     try {
-        await API.updateAirline(id, { name, fees_fixed, fees_percent });
+        await API.updateAirline(id, { name, fees_fixed, fees_percent, logo_url });
         await loadAirlinesList();
     } catch (e) {
         alert('Erreur: ' + e.message);
+    }
+}
+
+async function uploadLogo(airlineId, input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const resp = await fetch(`/api/airlines/${airlineId}/logo`, {
+            method: 'POST',
+            body: formData,
+        });
+        if (!resp.ok) throw new Error('Upload failed');
+        await loadAirlinesList();
+    } catch (e) {
+        alert('Erreur upload: ' + e.message);
     }
 }
 

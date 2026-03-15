@@ -2,7 +2,7 @@ import json
 import asyncio
 import logging
 from datetime import datetime, date
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -38,6 +38,7 @@ class FlightOut(BaseModel):
     airline_name: str
     airline_fees_fixed: float
     airline_fees_percent: float
+    airline_logo_url: Optional[str] = None
     direction: str
     flight_date: str
     departure_time: str
@@ -70,6 +71,7 @@ def _flight_to_dict(f: Flight) -> dict:
         "airline_name": f.airline.name if f.airline else "",
         "airline_fees_fixed": f.airline.fees_fixed if f.airline else 0,
         "airline_fees_percent": f.airline.fees_percent if f.airline else 0,
+        "airline_logo_url": f.airline.logo_url if f.airline else None,
         "direction": f.direction,
         "flight_date": f.flight_date.isoformat() if f.flight_date else "",
         "departure_time": str(f.departure_time) if f.departure_time else "",
@@ -121,6 +123,9 @@ async def _run_scraping(search_id: int):
     from scraper.transavia import TransaviaScraper
     from scraper.airfrance import AirFranceScraper
     from scraper.airarabia import AirArabiaScraper
+    from scraper.royalairmaroc import RoyalAirMarocScraper
+    from scraper.amadeus_scraper import amadeus_search, is_amadeus_configured
+    from scraper.google_flights import google_flights_search, google_flights_bulk_search
 
     db = SessionLocal()
     log_entry = None
@@ -155,9 +160,15 @@ async def _run_scraping(search_id: int):
             "Transavia": TransaviaScraper,
             "Air France": AirFranceScraper,
             "Air Arabia": AirArabiaScraper,
+            "Royal Air Maroc": RoyalAirMarocScraper,
         }
 
+        use_amadeus = is_amadeus_configured()
+
         all_results = []
+        failed_airlines = []
+
+        # Phase 1: Try direct scrapers
         for airline_name, scraper_cls in scraper_classes.items():
             if airline_name not in airline_map:
                 continue
@@ -170,16 +181,74 @@ async def _run_scraping(search_id: int):
                     date_to=search.date_to,
                     trip_type=search.trip_type,
                 )
-                all_results.extend((airline_name, r) for r in results)
+                real_flights = [r for r in results if not getattr(r, "route_not_served", False)]
+                if real_flights:
+                    all_results.extend((airline_name, r) for r in results)
+                elif airline_name != "Ryanair":
+                    failed_airlines.append(airline_name)
+                    logger.info(f"Direct scraper for {airline_name} found no flights, queued for Google Flights")
+                else:
+                    all_results.extend((airline_name, r) for r in results)
             except Exception as e:
                 logger.error(f"Scraper {airline_name} failed: {e}")
+                if airline_name != "Ryanair":
+                    failed_airlines.append(airline_name)
+
+        # Phase 2: Single bulk Google Flights search for all failed airlines
+        if failed_airlines:
+            logger.info(f"Running Google Flights bulk search for: {', '.join(failed_airlines)}")
+            try:
+                gf_results = await google_flights_bulk_search(
+                    airline_names=failed_airlines,
+                    origin_city=search.origin_city,
+                    destination_city=search.destination_city,
+                    date_from=search.date_from,
+                    date_to=search.date_to,
+                    trip_type=search.trip_type,
+                )
+                still_failed = []
+                for airline_name, flights in gf_results.items():
+                    real = [f for f in flights if not getattr(f, "route_not_served", False)]
+                    if real:
+                        all_results.extend((airline_name, f) for f in flights)
+                    else:
+                        still_failed.append(airline_name)
+                        all_results.extend((airline_name, f) for f in flights)
+            except Exception as e:
+                logger.warning(f"Google Flights bulk search failed: {e}")
+                still_failed = failed_airlines
+
+            # Phase 3: Amadeus fallback for airlines still without results
+            if still_failed and use_amadeus:
+                for airline_name in still_failed:
+                    try:
+                        amadeus_results = await amadeus_search(
+                            airline_name=airline_name,
+                            origin_city=search.origin_city,
+                            destination_city=search.destination_city,
+                            date_from=search.date_from,
+                            date_to=search.date_to,
+                            trip_type=search.trip_type,
+                        )
+                        amadeus_real = [r for r in amadeus_results if not getattr(r, "route_not_served", False)]
+                        if amadeus_real:
+                            # Replace route_not_served with Amadeus results
+                            all_results = [(n, r) for n, r in all_results if n != airline_name]
+                            all_results.extend((airline_name, r) for r in amadeus_results)
+                            logger.info(f"Amadeus found {len(amadeus_real)} flights for {airline_name}")
+                    except Exception as am_err:
+                        logger.warning(f"Amadeus fallback failed for {airline_name}: {am_err}")
 
         db.query(Flight).filter(Flight.search_id == search_id).delete()
         db.commit()
 
+        route_not_served_airlines = set()
         for airline_name, result in all_results:
             airline = airline_map.get(airline_name)
             if not airline:
+                continue
+            if getattr(result, "route_not_served", False):
+                route_not_served_airlines.add(airline_name)
                 continue
             flight = Flight(
                 search_id=search_id,
@@ -204,11 +273,16 @@ async def _run_scraping(search_id: int):
             )
             db.add(ph)
 
+        if route_not_served_airlines:
+            logger.info(f"Route not served by: {', '.join(route_not_served_airlines)}")
+
         db.commit()
 
         if log_entry:
             log_entry.status = "success"
             log_entry.ended_at = datetime.utcnow()
+            if route_not_served_airlines:
+                log_entry.error_msg = "route_not_served:" + ",".join(sorted(route_not_served_airlines))
             db.commit()
 
         try:

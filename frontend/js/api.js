@@ -88,6 +88,10 @@ const API = {
         return this.get('/api/logs');
     },
 
+    async getCrawlerLogs() {
+        return this.get('/api/crawler/logs');
+    },
+
     async updateSettings(settings) {
         return this.put('/api/settings', { settings });
     },

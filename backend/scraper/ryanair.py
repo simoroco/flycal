@@ -4,7 +4,7 @@ from typing import List
 
 import httpx
 
-from .base import FlightResult, ScraperBase
+from .base import FlightResult, ScraperBase, make_route_not_served
 
 logger = logging.getLogger("flycal.scraper.ryanair")
 
@@ -78,6 +78,8 @@ def _resolve_airport(city: str) -> str:
 
 
 class RyanairScraper(ScraperBase):
+    AIRLINE = "Ryanair"
+
     async def search(
         self,
         origin_city: str,
@@ -166,6 +168,10 @@ class RyanairScraper(ScraperBase):
                     except Exception as e:
                         logger.error(f"Ryanair error for {dep}->{arr} on {current}: {e}")
                     current += timedelta(days=1)
+
+                direction_results = [r for r in results if r.direction == direction]
+                if not direction_results:
+                    results.append(make_route_not_served(self.AIRLINE, direction, date_from))
 
         logger.info(f"Ryanair: found {len(results)} flights for {origin_city}->{destination_city}")
         return results

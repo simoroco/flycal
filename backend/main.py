@@ -7,9 +7,11 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from database import init_db
 from scheduler import init_scheduler
@@ -76,3 +78,12 @@ def get_logs():
         ]
     finally:
         db.close()
+
+
+_logo_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "logos")
+os.makedirs(_logo_dir, exist_ok=True)
+app.mount("/api/airlines/logos", StaticFiles(directory=_logo_dir), name="logos")
+
+_frontend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend")
+if os.path.isdir(_frontend_dir):
+    app.mount("/", StaticFiles(directory=_frontend_dir, html=True), name="frontend")

@@ -138,7 +138,12 @@ function renderCalendar(container, flights, selectedId, onSelect, settings) {
             html += `<div class="flight-card color-${color}${isSelected ? ' selected' : ''}" data-flight-id="${f.id}" onclick="handleFlightClick(${f.id}, '${f.direction}')">`;
 
             html += `<div class="flight-airline">`;
-            html += `<div class="airline-logo">${abbrev}</div>`;
+            if (f.airline_logo_url) {
+                html += `<img src="${f.airline_logo_url}" alt="${f.airline_name}" class="airline-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`;
+                html += `<div class="airline-logo" style="display:none">${abbrev}</div>`;
+            } else {
+                html += `<div class="airline-logo">${abbrev}</div>`;
+            }
             html += `<div class="airline-name">${f.airline_name || ''}</div>`;
             html += `</div>`;
 

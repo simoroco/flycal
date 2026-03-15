@@ -16,7 +16,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
-DB_PATH = os.environ.get("DB_PATH", "/app/data/db.sqlite")
+_default_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "db.sqlite")
+DB_PATH = os.environ.get("DB_PATH", _default_db)
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
@@ -54,6 +55,7 @@ class Airline(Base):
     fees_fixed = Column(Float, default=0.0)
     fees_percent = Column(Float, default=0.0)
     enabled = Column(Boolean, default=True)
+    logo_url = Column(Text, nullable=True, default=None)
     flights = relationship("Flight", back_populates="airline")
 
 
@@ -111,19 +113,55 @@ def get_db():
         db.close()
 
 
+def _migrate_db():
+    """Add missing columns to existing tables."""
+    import sqlite3
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    # Add logo_url to airlines if missing
+    cursor.execute("PRAGMA table_info(airlines)")
+    cols = {row[1] for row in cursor.fetchall()}
+    if "logo_url" not in cols:
+        cursor.execute("ALTER TABLE airlines ADD COLUMN logo_url TEXT")
+        # Set default logos for known airlines
+        defaults = {
+            "Transavia": "https://images.kiwi.com/airlines/64/HV.png",
+            "Ryanair": "https://images.kiwi.com/airlines/64/FR.png",
+            "Air France": "https://images.kiwi.com/airlines/64/AF.png",
+            "Air Arabia": "https://images.kiwi.com/airlines/64/3O.png",
+            "Royal Air Maroc": "https://images.kiwi.com/airlines/64/AT.png",
+        }
+        for name, url in defaults.items():
+            cursor.execute("UPDATE airlines SET logo_url = ? WHERE name = ?", (url, name))
+        conn.commit()
+    conn.close()
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+    _migrate_db()
     db = SessionLocal()
     try:
         if db.query(Airline).count() == 0:
             default_airlines = [
-                Airline(name="Transavia", fees_fixed=0.0, fees_percent=0.0, enabled=True),
-                Airline(name="Ryanair", fees_fixed=0.0, fees_percent=0.0, enabled=True),
-                Airline(name="Air France", fees_fixed=0.0, fees_percent=0.0, enabled=True),
-                Airline(name="Air Arabia", fees_fixed=0.0, fees_percent=0.0, enabled=True),
+                Airline(name="Transavia", fees_fixed=0.0, fees_percent=0.0, enabled=True,
+                        logo_url="https://images.kiwi.com/airlines/64/HV.png"),
+                Airline(name="Ryanair", fees_fixed=0.0, fees_percent=0.0, enabled=True,
+                        logo_url="https://images.kiwi.com/airlines/64/FR.png"),
+                Airline(name="Air France", fees_fixed=0.0, fees_percent=0.0, enabled=True,
+                        logo_url="https://images.kiwi.com/airlines/64/AF.png"),
+                Airline(name="Air Arabia", fees_fixed=0.0, fees_percent=0.0, enabled=True,
+                        logo_url="https://images.kiwi.com/airlines/64/3O.png"),
+                Airline(name="Royal Air Maroc", fees_fixed=0.0, fees_percent=0.0, enabled=True,
+                        logo_url="https://images.kiwi.com/airlines/64/AT.png"),
             ]
             db.add_all(default_airlines)
             db.commit()
+        else:
+            existing_names = {a.name for a in db.query(Airline).all()}
+            if "Royal Air Maroc" not in existing_names:
+                db.add(Airline(name="Royal Air Maroc", fees_fixed=0.0, fees_percent=0.0, enabled=True))
+                db.commit()
 
         default_settings = {
             "smtp_host": "",

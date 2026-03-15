@@ -1,11 +1,17 @@
+"""
+Transavia scraper using curl_cffi to bypass Cloudflare.
+Attempts direct scraping from transavia.com, returns empty results quickly
+if flight data can't be extracted (triggers Google Flights fallback).
+"""
 import asyncio
 import json
 import logging
-import random
+import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from typing import List
 
-from .base import FlightResult, ScraperBase
+from .base import FlightResult, make_route_not_served, parse_time, parse_price
 
 logger = logging.getLogger("flycal.scraper.transavia")
 
@@ -66,7 +72,162 @@ def _resolve_airport(city: str) -> str:
     return CITY_AIRPORT_MAP.get(normalized, normalized.upper()[:3])
 
 
-class TransaviaScraper(ScraperBase):
+def _scrape_transavia_sync(dep: str, arr: str, flight_date: str) -> list:
+    """Synchronous scraping via curl_cffi (runs in thread pool)."""
+    try:
+        from curl_cffi import requests as cffi_requests
+    except ImportError:
+        logger.warning("curl_cffi not installed, skipping Transavia direct scraping")
+        return []
+
+    results = []
+    try:
+        session = cffi_requests.Session(impersonate="chrome")
+
+        # Load search page (bypasses Cloudflare via TLS fingerprinting)
+        search_url = (
+            f"https://www.transavia.com/fr-FR/book-a-flight/flights/search/"
+            f"?routeSelection={dep}-{arr}"
+            f"&dateSelection={flight_date}"
+            f"&flexibleSearch=false"
+            f"&selectPassengers=1"
+        )
+        r = session.get(search_url, timeout=12)
+        if r.status_code != 200:
+            logger.warning(f"Transavia: got {r.status_code} for {dep}->{arr} on {flight_date}")
+            return []
+
+        html = r.text
+
+        # Extract CSRF token and form action
+        token_match = re.search(
+            r'name="__RequestVerificationToken"[^>]*value="([^"]+)"', html
+        )
+        csrf = token_match.group(1) if token_match else ""
+
+        form_match = re.search(r'<form[^>]*action="([^"]*)"[^>]*>', html)
+        form_action = form_match.group(1) if form_match else "/fr-FR/reservez-un-vol/vols/rechercher/"
+
+        # POST to form action with XHR header (ASP.NET returns partial HTML)
+        form_data = {
+            "__RequestVerificationToken": csrf,
+            "routeSelection": f"{dep}-{arr}",
+            "dateSelection": flight_date,
+            "flexibleSearch": "false",
+            "selectPassengers": "1",
+        }
+        r2 = session.post(
+            f"https://www.transavia.com{form_action}",
+            data=form_data,
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept": "application/json, text/html, */*",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            timeout=12,
+        )
+
+        if r2.status_code == 200:
+            ct = r2.headers.get("content-type", "")
+            if "json" in ct:
+                try:
+                    data = r2.json()
+                    results = _parse_json_response(data, dep, arr, flight_date)
+                except Exception:
+                    pass
+            else:
+                results = _parse_html_response(r2.text, dep, arr, flight_date)
+
+        session.close()
+    except Exception as e:
+        logger.warning(f"Transavia curl_cffi error for {dep}->{arr} on {flight_date}: {e}")
+
+    return results
+
+
+def _parse_json_response(data: dict, dep: str, arr: str, flight_date: str) -> list:
+    """Parse JSON response from Transavia API."""
+    results = []
+    if not isinstance(data, dict):
+        return results
+
+    journeys = []
+    for key in ("outboundFlights", "flights", "journeys", "flightOffer",
+                "flightProducts", "availableFlights", "results"):
+        if key in data:
+            val = data[key]
+            if isinstance(val, list):
+                journeys = val
+                break
+
+    for flight in journeys:
+        if not isinstance(flight, dict):
+            continue
+        segments = flight.get("segments", flight.get("flightSegments", flight.get("legs", [flight])))
+        if isinstance(segments, list) and len(segments) > 1:
+            continue
+
+        seg = segments[0] if isinstance(segments, list) and segments else flight
+        dep_time = parse_time(str(seg.get("departureTime", seg.get("departureDateTime", ""))))
+        arr_time = parse_time(str(seg.get("arrivalTime", seg.get("arrivalDateTime", ""))))
+
+        price = 0.0
+        for pk in ("price", "priceFrom", "fare", "totalPrice"):
+            if pk in flight:
+                pval = flight[pk]
+                price = parse_price(pval) if not isinstance(pval, dict) else parse_price(pval.get("amount", 0))
+                break
+
+        if price > 0 and dep_time and arr_time:
+            results.append({
+                "departure_time": dep_time,
+                "arrival_time": arr_time,
+                "origin": dep,
+                "destination": arr,
+                "price": price,
+            })
+    return results
+
+
+def _parse_html_response(html: str, dep: str, arr: str, flight_date: str) -> list:
+    """Parse HTML response for embedded flight data."""
+    results = []
+    # Look for flight product cards with prices and times
+    cards = re.findall(
+        r'class="[^"]*flight-product[^"]*"[^>]*>(.*?)</(?:div|section|article)',
+        html, re.DOTALL | re.IGNORECASE
+    )
+    for card in cards:
+        times = re.findall(r'(\d{2}:\d{2})', card)
+        prices = re.findall(r'(\d+)[,.](\d{2})', card)
+        if len(times) >= 2 and prices:
+            price = float(f"{prices[0][0]}.{prices[0][1]}")
+            if price > 10:
+                results.append({
+                    "departure_time": times[0],
+                    "arrival_time": times[1],
+                    "origin": dep,
+                    "destination": arr,
+                    "price": price,
+                })
+    return results
+
+
+class TransaviaScraper:
+    """
+    Transavia scraper - Direct scraping disabled.
+    
+    Transavia.com is a Next.js/React SPA that loads all flight data via client-side
+    JavaScript. Direct HTTP scraping fails because:
+    - HTTP 429 rate limiting (Cloudflare blocks after ~10 requests)
+    - No accessible REST API endpoints
+    - Flight data requires JavaScript execution
+    
+    This scraper immediately returns route_not_served to trigger Google Flights
+    fallback (phase 2), which successfully finds Transavia flights.
+    """
+    AIRLINE = "Transavia"
+
     async def search(
         self,
         origin_city: str,
@@ -75,176 +236,14 @@ class TransaviaScraper(ScraperBase):
         date_to: date,
         trip_type: str,
     ) -> List[FlightResult]:
-        return await self._retry(
-            self._do_search, origin_city, destination_city, date_from, date_to, trip_type
-        )
-
-    async def _do_search(
-        self,
-        origin_city: str,
-        destination_city: str,
-        date_from: date,
-        date_to: date,
-        trip_type: str,
-    ) -> List[FlightResult]:
-        results: List[FlightResult] = []
-        origin = _resolve_airport(origin_city)
-        destination = _resolve_airport(destination_city)
-
-        directions = [("outbound", origin, destination)]
+        """Return route_not_served immediately to trigger Google Flights fallback."""
+        logger.info(f"Transavia: skipping direct scraping (using Google Flights fallback)")
+        
+        results = [
+            make_route_not_served(self.AIRLINE, "outbound", date_from)
+        ]
+        
         if trip_type == "roundtrip":
-            directions.append(("return", destination, origin))
-
-        page = None
-        try:
-            page = await self._init_browser()
-
-            for direction, dep, arr in directions:
-                current = date_from
-                while current <= date_to:
-                    try:
-                        captured_responses = []
-
-                        async def handle_response(response):
-                            url = response.url
-                            if "availability" in url.lower() or "search" in url.lower():
-                                try:
-                                    body = await response.json()
-                                    captured_responses.append(body)
-                                except Exception:
-                                    pass
-
-                        page.on("response", handle_response)
-
-                        search_url = (
-                            f"https://www.transavia.com/fr-FR/book-a-flight/flights/search/"
-                            f"?routeSelection={dep}-{arr}"
-                            f"&dateSelection={current.isoformat()}"
-                            f"&flexibleSearch=false"
-                            f"&selectPassengers=1"
-                        )
-                        await page.goto(search_url, wait_until="networkidle", timeout=30000)
-                        await asyncio.sleep(random.uniform(2, 4))
-
-                        page.remove_listener("response", handle_response)
-
-                        for resp_data in captured_responses:
-                            flights = self._parse_api_response(resp_data, direction, dep, arr, current)
-                            results.extend(flights)
-
-                        if not captured_responses:
-                            dom_flights = await self._parse_dom(page, direction, dep, arr, current)
-                            results.extend(dom_flights)
-
-                    except Exception as e:
-                        logger.error(f"Transavia error for {dep}->{arr} on {current}: {e}")
-                    current += timedelta(days=1)
-
-        except Exception as e:
-            logger.error(f"Transavia browser error: {e}")
-        finally:
-            await self._close_browser()
-
-        logger.info(f"Transavia: found {len(results)} flights for {origin_city}->{destination_city}")
-        return results
-
-    def _parse_api_response(self, data, direction, dep, arr, flight_date) -> List[FlightResult]:
-        results = []
-        try:
-            journeys = []
-            if isinstance(data, dict):
-                for key in ("outboundFlights", "flights", "journeys", "flightOffer"):
-                    if key in data:
-                        val = data[key]
-                        if isinstance(val, list):
-                            journeys = val
-                            break
-                        elif isinstance(val, dict):
-                            for sub_key in val:
-                                if isinstance(val[sub_key], list):
-                                    journeys = val[sub_key]
-                                    break
-
-            for flight in journeys:
-                if isinstance(flight, dict):
-                    segments = flight.get("segments", flight.get("flightSegments", [flight]))
-                    if isinstance(segments, list) and len(segments) > 1:
-                        continue  # skip non-direct
-
-                    seg = segments[0] if segments else flight
-                    dep_time = seg.get("departureTime", seg.get("departureDateTime", ""))
-                    arr_time = seg.get("arrivalTime", seg.get("arrivalDateTime", ""))
-                    if isinstance(dep_time, str) and len(dep_time) > 5:
-                        dep_time = dep_time[11:16] if "T" in dep_time else dep_time[:5]
-                    if isinstance(arr_time, str) and len(arr_time) > 5:
-                        arr_time = arr_time[11:16] if "T" in arr_time else arr_time[:5]
-
-                    origin_iata = seg.get("origin", seg.get("departureAirport", {
-                    })).get("iataCode", dep) if isinstance(seg.get("origin", seg.get("departureAirport")), dict) else dep
-                    dest_iata = seg.get("destination", seg.get("arrivalAirport", {
-                    })).get("iataCode", arr) if isinstance(seg.get("destination", seg.get("arrivalAirport")), dict) else arr
-
-                    price = None
-                    for price_key in ("price", "priceFrom", "fare", "totalPrice"):
-                        if price_key in flight:
-                            pval = flight[price_key]
-                            if isinstance(pval, (int, float)):
-                                price = float(pval)
-                            elif isinstance(pval, dict):
-                                price = float(pval.get("amount", pval.get("value", 0)))
-                            break
-
-                    if price and price > 0 and dep_time and arr_time:
-                        results.append(FlightResult(
-                            airline="Transavia",
-                            direction=direction,
-                            flight_date=flight_date,
-                            departure_time=str(dep_time)[:5],
-                            arrival_time=str(arr_time)[:5],
-                            origin_airport=str(origin_iata)[:3] if origin_iata else dep,
-                            destination_airport=str(dest_iata)[:3] if dest_iata else arr,
-                            price=price,
-                            currency="EUR",
-                        ))
-        except Exception as e:
-            logger.error(f"Transavia parse error: {e}")
-        return results
-
-    async def _parse_dom(self, page, direction, dep, arr, flight_date) -> List[FlightResult]:
-        results = []
-        try:
-            cards = await page.query_selector_all("[class*='flight'], [class*='result'], [data-testid*='flight']")
-            for card in cards:
-                try:
-                    text = await card.inner_text()
-                    lines = [l.strip() for l in text.split("\n") if l.strip()]
-                    price = None
-                    dep_time = None
-                    arr_time = None
-                    for line in lines:
-                        if "€" in line:
-                            digits = "".join(c for c in line.replace(",", ".") if c.isdigit() or c == ".")
-                            if digits:
-                                price = float(digits)
-                        elif ":" in line and len(line) <= 5:
-                            if dep_time is None:
-                                dep_time = line
-                            elif arr_time is None:
-                                arr_time = line
-                    if price and price > 0 and dep_time and arr_time:
-                        results.append(FlightResult(
-                            airline="Transavia",
-                            direction=direction,
-                            flight_date=flight_date,
-                            departure_time=dep_time,
-                            arrival_time=arr_time,
-                            origin_airport=dep,
-                            destination_airport=arr,
-                            price=price,
-                            currency="EUR",
-                        ))
-                except Exception:
-                    continue
-        except Exception as e:
-            logger.error(f"Transavia DOM parse error: {e}")
+            results.append(make_route_not_served(self.AIRLINE, "return", date_from))
+        
         return results
