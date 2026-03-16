@@ -275,20 +275,12 @@ body {
     flex-shrink: 0;
 }
 
-/* ── Central Loader Overlay ── */
+/* ── Central Loader (inside mainContent) ── */
 .central-loader {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 150;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(10, 10, 15, 0.7);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    padding: 60px 20px;
 }
 
 .central-loader-inner {
@@ -464,35 +456,120 @@ body {
     padding: 12px 16px;
 }
 
-/* ── Flight Layout: Outbound | Calendar | Return ── */
-.flight-layout {
-    display: flex;
+/* ── Flight Grid: Outbound | Date | Return (aligned rows) ── */
+.flight-grid-header {
+    display: grid;
+    grid-template-columns: 1fr 70px 1fr;
     gap: 0;
-    align-items: flex-start;
+    padding: 0 4px 6px;
+    border-bottom: 1px solid var(--glass-border);
+    margin-bottom: 4px;
 }
 
-.flight-col {
-    flex: 1;
-    min-width: 0;
-}
-
-.col-title {
-    font-size: 0.85rem;
+.flight-grid-header .col-title {
+    font-size: 0.8rem;
     font-weight: 600;
-    margin-bottom: 8px;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     padding: 0 8px;
 }
 
-.calendar-col {
-    width: 60px;
-    flex-shrink: 0;
+.flight-grid-header .col-title-center {
+    text-align: center;
+    padding: 0;
+}
+
+.flight-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* Week header row */
+.week-header-row {
+    display: grid;
+    grid-template-columns: 1fr 70px 1fr;
+    gap: 0;
+    padding: 10px 8px 4px;
+    margin-top: 6px;
+    border-top: 2px solid rgba(108, 99, 255, 0.15);
+}
+
+.week-header-row:first-child {
+    margin-top: 0;
+    border-top: none;
+}
+
+.week-header-label {
+    grid-column: 1 / -1;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.week-header-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    opacity: 0.3;
+}
+
+/* Day row: outbound | date | return aligned on same line */
+.flight-day-row {
+    display: grid;
+    grid-template-columns: 1fr 70px 1fr;
+    gap: 0;
+    min-height: 36px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 3px 0;
+}
+
+.flight-day-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 2px 4px;
+    min-width: 0;
+}
+
+.flight-day-col.dimmed {
+    opacity: 0.35;
+}
+
+.flight-day-date {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding-top: 30px;
+    justify-content: flex-start;
+    padding: 4px 2px;
+}
+
+.flight-day-date .day-name {
+    font-size: 0.55rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.flight-day-date .day-num {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.1;
+}
+
+.flight-day-date .day-month {
+    font-size: 0.5rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
 }
 
 /* ── Loader ── */
@@ -966,8 +1043,11 @@ body {
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-    .flight-layout { flex-direction: column; }
-    .calendar-col { display: none; }
+    .flight-grid-header,
+    .flight-day-row { grid-template-columns: 1fr; }
+    .flight-grid-header .col-title-center,
+    .flight-day-date { display: none; }
+    .week-header-row { grid-template-columns: 1fr; }
     .search-row-compact { flex-wrap: wrap; }
     .header-left { flex-direction: column; gap: 6px; }
     .recap-inner { flex-wrap: wrap; }

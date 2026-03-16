@@ -435,7 +435,7 @@ function getMondayOfWeek(dateStr) {
     return monday;
 }
 
-// ── Render flights with vertical calendar layout ──
+// ── Render flights with aligned grid layout (outbound | date | return per row) ──
 function renderFlights() {
     const outbound = allFlights.filter(f => f.direction === 'outbound');
     const ret = allFlights.filter(f => f.direction === 'return');
@@ -445,50 +445,38 @@ function renderFlights() {
     ret.forEach(f => allDates.add(f.flight_date));
     const sortedDates = [...allDates].sort();
 
-    const outContainer = document.getElementById('listOutbound');
-    const retContainer = document.getElementById('listReturn');
-    const calStrip = document.getElementById('calendarStrip');
-    const emptyOut = document.getElementById('emptyOutbound');
-    const emptyRet = document.getElementById('emptyReturn');
+    const grid = document.getElementById('flightGrid');
+    const emptyState = document.getElementById('emptyState');
 
     if (sortedDates.length === 0) {
-        outContainer.innerHTML = '';
-        retContainer.innerHTML = '';
-        calStrip.innerHTML = '';
-        if (emptyOut) { emptyOut.classList.remove('hidden'); outContainer.appendChild(emptyOut); }
-        if (emptyRet) { emptyRet.classList.remove('hidden'); retContainer.appendChild(emptyRet); }
+        grid.innerHTML = '';
+        if (emptyState) { emptyState.classList.remove('hidden'); grid.appendChild(emptyState); }
         updateRecap();
         return;
     }
 
-    if (emptyOut) emptyOut.classList.add('hidden');
-    if (emptyRet) emptyRet.classList.add('hidden');
+    if (emptyState) emptyState.classList.add('hidden');
 
     const outByDate = {};
     const retByDate = {};
     outbound.forEach(f => { (outByDate[f.flight_date] = outByDate[f.flight_date] || []).push(f); });
     ret.forEach(f => { (retByDate[f.flight_date] = retByDate[f.flight_date] || []).push(f); });
 
-    let outHtml = '';
-    let calHtml = '';
-    let retHtml = '';
+    let html = '';
     let prevMondayStr = null;
-    let isFirstDate = true;
 
     for (const dateKey of sortedDates) {
         const currentMonday = getMondayOfWeek(dateKey);
         const currentMondayStr = formatDateISO(currentMonday);
         const weekNum = getISOWeekNumber(dateKey);
 
-        // Week separator when week changes
+        // Week header when week changes
         if (currentMondayStr !== prevMondayStr) {
-            if (!isFirstDate) {
-                // Week separator in all 3 columns
-                const weekLabel = `Week ${weekNum}`;
-                outHtml += `<div class="week-separator"><span>${weekLabel}</span></div>`;
-                calHtml += `<div class="week-separator"><span>${weekLabel}</span></div>`;
-                retHtml += `<div class="week-separator"><span>${weekLabel}</span></div>`;
-            }
+            const mondayDay = currentMonday.getDate();
+            const mondayMonth = currentMonday.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+            html += `<div class="week-header-row">
+                <div class="week-header-label">Week ${weekNum} — Mon ${mondayDay} ${mondayMonth}</div>
+            </div>`;
             prevMondayStr = currentMondayStr;
         }
 
@@ -507,31 +495,33 @@ function renderFlights() {
         const dayNum = d.getDate();
         const monthName = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
 
-        calHtml += `<div class="cal-day-cell" data-date="${dateKey}">
-            <span class="cal-day-name">${dayName}</span>
-            <span class="cal-day-num">${dayNum}</span>
-            <span class="cal-month">${monthName}</span>
+        html += `<div class="flight-day-row" data-date="${dateKey}">`;
+
+        // Outbound column
+        html += `<div class="flight-day-col${isDimForOutbound ? ' dimmed' : ''}">`;
+        if (dayFlightsOut.length > 0) {
+            html += renderDayFlights(dayFlightsOut, 'outbound', isDimForOutbound);
+        }
+        html += `</div>`;
+
+        // Date column (center)
+        html += `<div class="flight-day-date">
+            <span class="day-name">${dayName}</span>
+            <span class="day-num">${dayNum}</span>
+            <span class="day-month">${monthName}</span>
         </div>`;
 
-        outHtml += `<div class="day-row${isDimForOutbound ? ' dimmed' : ''}" data-date="${dateKey}">`;
-        if (dayFlightsOut.length > 0) {
-            outHtml += renderDayFlights(dayFlightsOut, 'outbound', isDimForOutbound);
-        }
-        outHtml += `</div>`;
-
-        retHtml += `<div class="day-row${isDimForReturn ? ' dimmed' : ''}" data-date="${dateKey}">`;
+        // Return column
+        html += `<div class="flight-day-col${isDimForReturn ? ' dimmed' : ''}">`;
         if (dayFlightsRet.length > 0) {
-            retHtml += renderDayFlights(dayFlightsRet, 'return', isDimForReturn);
+            html += renderDayFlights(dayFlightsRet, 'return', isDimForReturn);
         }
-        retHtml += `</div>`;
+        html += `</div>`;
 
-        isFirstDate = false;
+        html += `</div>`;
     }
 
-    outContainer.innerHTML = outHtml;
-    calStrip.innerHTML = calHtml;
-    retContainer.innerHTML = retHtml;
-
+    grid.innerHTML = html;
     updateRecap();
 }
 
