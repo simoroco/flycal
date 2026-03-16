@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from database import Airline, get_db
 
-LOGO_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "logos")
+_data_dir = os.environ.get("DATA_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "data"))
+LOGO_DIR = os.path.join(_data_dir, "logos")
 os.makedirs(LOGO_DIR, exist_ok=True)
 
 router = APIRouter(prefix="/api/airlines", tags=["airlines"])

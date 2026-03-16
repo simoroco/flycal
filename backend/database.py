@@ -16,8 +16,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
-_default_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "db.sqlite")
-DB_PATH = os.environ.get("DB_PATH", _default_db)
+_data_dir = os.environ.get("DATA_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data"))
+DB_PATH = os.environ.get("DB_PATH", os.path.join(_data_dir, "db.sqlite"))
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})

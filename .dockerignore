@@ -1,5 +1,6 @@
 .git
 data
+backend/data
 *.md
 .DS_Store
 __pycache__

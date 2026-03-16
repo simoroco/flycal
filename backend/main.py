@@ -80,7 +80,8 @@ def get_logs():
         db.close()
 
 
-_logo_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "logos")
+_data_dir = os.environ.get("DATA_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data"))
+_logo_dir = os.path.join(_data_dir, "logos")
 os.makedirs(_logo_dir, exist_ok=True)
 app.mount("/api/airlines/logos", StaticFiles(directory=_logo_dir), name="logos")
 
