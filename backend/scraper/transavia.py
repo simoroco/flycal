@@ -1,17 +1,18 @@
 """
-Transavia scraper using curl_cffi to bypass Cloudflare.
-Attempts direct scraping from transavia.com, returns empty results quickly
-if flight data can't be extracted (triggers Google Flights fallback).
+Transavia scraper — delegates to Google Flights via fast-flights.
+
+Transavia.com uses Cloudflare protection that blocks all headless browser
+searches. Instead, we use Google Flights (via fast-flights library) as the
+data source for Transavia flight availability and pricing.
 """
 import asyncio
-import json
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from typing import List
 
-from .base import FlightResult, make_route_not_served, parse_time, parse_price
+from .base import FlightResult, ScraperBase, make_route_not_served
 
 logger = logging.getLogger("flycal.scraper.transavia")
 
@@ -72,178 +73,118 @@ def _resolve_airport(city: str) -> str:
     return CITY_AIRPORT_MAP.get(normalized, normalized.upper()[:3])
 
 
-def _scrape_transavia_sync(dep: str, arr: str, flight_date: str) -> list:
-    """Synchronous scraping via curl_cffi (runs in thread pool)."""
-    try:
-        from curl_cffi import requests as cffi_requests
-    except ImportError:
-        logger.warning("curl_cffi not installed, skipping Transavia direct scraping")
-        return []
-
-    results = []
-    try:
-        session = cffi_requests.Session(impersonate="chrome")
-
-        # Load search page (bypasses Cloudflare via TLS fingerprinting)
-        search_url = (
-            f"https://www.transavia.com/fr-FR/book-a-flight/flights/search/"
-            f"?routeSelection={dep}-{arr}"
-            f"&dateSelection={flight_date}"
-            f"&flexibleSearch=false"
-            f"&selectPassengers=1"
-        )
-        r = session.get(search_url, timeout=12)
-        if r.status_code != 200:
-            logger.warning(f"Transavia: got {r.status_code} for {dep}->{arr} on {flight_date}")
-            return []
-
-        html = r.text
-
-        # Extract CSRF token and form action
-        token_match = re.search(
-            r'name="__RequestVerificationToken"[^>]*value="([^"]+)"', html
-        )
-        csrf = token_match.group(1) if token_match else ""
-
-        form_match = re.search(r'<form[^>]*action="([^"]*)"[^>]*>', html)
-        form_action = form_match.group(1) if form_match else "/fr-FR/reservez-un-vol/vols/rechercher/"
-
-        # POST to form action with XHR header (ASP.NET returns partial HTML)
-        form_data = {
-            "__RequestVerificationToken": csrf,
-            "routeSelection": f"{dep}-{arr}",
-            "dateSelection": flight_date,
-            "flexibleSearch": "false",
-            "selectPassengers": "1",
-        }
-        r2 = session.post(
-            f"https://www.transavia.com{form_action}",
-            data=form_data,
-            headers={
-                "X-Requested-With": "XMLHttpRequest",
-                "Accept": "application/json, text/html, */*",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            timeout=12,
-        )
-
-        if r2.status_code == 200:
-            ct = r2.headers.get("content-type", "")
-            if "json" in ct:
-                try:
-                    data = r2.json()
-                    results = _parse_json_response(data, dep, arr, flight_date)
-                except Exception:
-                    pass
-            else:
-                results = _parse_html_response(r2.text, dep, arr, flight_date)
-
-        session.close()
-    except Exception as e:
-        logger.warning(f"Transavia curl_cffi error for {dep}->{arr} on {flight_date}: {e}")
-
-    return results
+def _parse_gf_time(raw: str) -> str:
+    """Parse Google Flights time like '7:40 AM on Sun, Apr 5' → '07:40'."""
+    if not raw:
+        return ""
+    time_part = raw.split(" on ")[0].strip() if " on " in raw else raw.strip()
+    m = re.match(r"(\d{1,2}):(\d{2})\s*(AM|PM)", time_part, re.IGNORECASE)
+    if m:
+        hour = int(m.group(1))
+        minute = m.group(2)
+        ampm = m.group(3).upper()
+        if ampm == "PM" and hour != 12:
+            hour += 12
+        elif ampm == "AM" and hour == 12:
+            hour = 0
+        return f"{hour:02d}:{minute}"
+    m2 = re.match(r"(\d{1,2}):(\d{2})", time_part)
+    if m2:
+        return f"{int(m2.group(1)):02d}:{m2.group(2)}"
+    return ""
 
 
-def _parse_json_response(data: dict, dep: str, arr: str, flight_date: str) -> list:
-    """Parse JSON response from Transavia API."""
-    results = []
-    if not isinstance(data, dict):
-        return results
-
-    journeys = []
-    for key in ("outboundFlights", "flights", "journeys", "flightOffer",
-                "flightProducts", "availableFlights", "results"):
-        if key in data:
-            val = data[key]
-            if isinstance(val, list):
-                journeys = val
-                break
-
-    for flight in journeys:
-        if not isinstance(flight, dict):
-            continue
-        segments = flight.get("segments", flight.get("flightSegments", flight.get("legs", [flight])))
-        if isinstance(segments, list) and len(segments) > 1:
-            continue
-
-        seg = segments[0] if isinstance(segments, list) and segments else flight
-        dep_time = parse_time(str(seg.get("departureTime", seg.get("departureDateTime", ""))))
-        arr_time = parse_time(str(seg.get("arrivalTime", seg.get("arrivalDateTime", ""))))
-
-        price = 0.0
-        for pk in ("price", "priceFrom", "fare", "totalPrice"):
-            if pk in flight:
-                pval = flight[pk]
-                price = parse_price(pval) if not isinstance(pval, dict) else parse_price(pval.get("amount", 0))
-                break
-
-        if price > 0 and dep_time and arr_time:
-            results.append({
-                "departure_time": dep_time,
-                "arrival_time": arr_time,
-                "origin": dep,
-                "destination": arr,
-                "price": price,
-            })
-    return results
+def _parse_gf_price(raw: str) -> float:
+    if not raw:
+        return 0.0
+    cleaned = raw.replace(",", "").replace("\xa0", "")
+    m = re.search(r"(\d+\.?\d*)", cleaned)
+    return float(m.group(1)) if m else 0.0
 
 
-def _parse_html_response(html: str, dep: str, arr: str, flight_date: str) -> list:
-    """Parse HTML response for embedded flight data."""
-    results = []
-    # Look for flight product cards with prices and times
-    cards = re.findall(
-        r'class="[^"]*flight-product[^"]*"[^>]*>(.*?)</(?:div|section|article)',
-        html, re.DOTALL | re.IGNORECASE
+def _fetch_day(dep: str, arr: str, date_str: str):
+    """Run fast-flights for a single day (blocking — run in executor)."""
+    from fast_flights import FlightData, Passengers, get_flights
+
+    return get_flights(
+        flight_data=[FlightData(date=date_str, from_airport=dep, to_airport=arr)],
+        trip="one-way",
+        seat="economy",
+        passengers=Passengers(adults=1),
+        fetch_mode="local",
     )
-    for card in cards:
-        times = re.findall(r'(\d{2}:\d{2})', card)
-        prices = re.findall(r'(\d+)[,.](\d{2})', card)
-        if len(times) >= 2 and prices:
-            price = float(f"{prices[0][0]}.{prices[0][1]}")
-            if price > 10:
-                results.append({
-                    "departure_time": times[0],
-                    "arrival_time": times[1],
-                    "origin": dep,
-                    "destination": arr,
-                    "price": price,
-                })
-    return results
 
 
-class TransaviaScraper:
-    """
-    Transavia scraper - Direct scraping disabled.
-    
-    Transavia.com is a Next.js/React SPA that loads all flight data via client-side
-    JavaScript. Direct HTTP scraping fails because:
-    - HTTP 429 rate limiting (Cloudflare blocks after ~10 requests)
-    - No accessible REST API endpoints
-    - Flight data requires JavaScript execution
-    
-    This scraper immediately returns route_not_served to trigger Google Flights
-    fallback (phase 2), which successfully finds Transavia flights.
-    """
+class TransaviaScraper(ScraperBase):
     AIRLINE = "Transavia"
 
     async def search(
-        self,
-        origin_city: str,
-        destination_city: str,
-        date_from: date,
-        date_to: date,
-        trip_type: str,
+        self, origin_city: str, destination_city: str,
+        date_from: date, date_to: date, trip_type: str,
     ) -> List[FlightResult]:
-        """Return route_not_served immediately to trigger Google Flights fallback."""
-        logger.info(f"Transavia: skipping direct scraping (using Google Flights fallback)")
-        
-        results = [
-            make_route_not_served(self.AIRLINE, "outbound", date_from)
-        ]
-        
+        results: List[FlightResult] = []
+        origin = _resolve_airport(origin_city)
+        destination = _resolve_airport(destination_city)
+
+        directions = [("outbound", origin, destination)]
         if trip_type == "roundtrip":
-            results.append(make_route_not_served(self.AIRLINE, "return", date_from))
-        
+            directions.append(("return", destination, origin))
+
+        loop = asyncio.get_event_loop()
+        executor = ThreadPoolExecutor(max_workers=2)
+
+        for direction, dep, arr in directions:
+            direction_results = []
+            seen = set()
+            current = date_from
+            while current <= date_to:
+                try:
+                    date_str = current.strftime("%Y-%m-%d")
+                    gf_result = await loop.run_in_executor(
+                        executor, _fetch_day, dep, arr, date_str
+                    )
+
+                    for flight in gf_result.flights:
+                        airline = (flight.name or "").strip()
+                        if airline.lower() != "transavia":
+                            continue
+                        if flight.stops != 0:
+                            continue
+
+                        dep_time = _parse_gf_time(flight.departure)
+                        arr_time = _parse_gf_time(flight.arrival)
+                        price = _parse_gf_price(flight.price)
+
+                        if dep_time and arr_time and price > 0:
+                            key = (current, dep_time, arr_time, dep, arr)
+                            if key in seen:
+                                continue
+                            seen.add(key)
+                            direction_results.append(FlightResult(
+                                airline=self.AIRLINE,
+                                direction=direction,
+                                flight_date=current,
+                                departure_time=dep_time,
+                                arrival_time=arr_time,
+                                origin_airport=dep,
+                                destination_airport=arr,
+                                price=price,
+                                currency="EUR",
+                            ))
+                except Exception as e:
+                    logger.warning(f"Transavia GF error {dep}->{arr} on {current}: {e}")
+
+                current += timedelta(days=1)
+
+            if direction_results:
+                results.extend(direction_results)
+                logger.info(
+                    f"Transavia: {len(direction_results)} flights ({direction}) "
+                    f"for {origin_city}->{destination_city}"
+                )
+            else:
+                results.append(make_route_not_served(self.AIRLINE, direction, date_from))
+
+        real_count = sum(1 for r in results if not r.route_not_served)
+        logger.info(f"Transavia: total {real_count} flights for {origin_city}->{destination_city}")
         return results

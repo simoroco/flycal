@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "flycal-frontend",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["http-server", "frontend", "-p", "8080", "--cors", "-c-1", "--proxy", "https://localhost:4444"],
+      "port": 8080
+    }
+  ]
+}
