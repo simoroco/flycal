@@ -24,6 +24,7 @@
 
 ## 📚 Table of Contents
 
+- [🖥️ Screenshot](#-screenshot)
 - [✨ Key Features](#-key-features)
 - [⚡ Quick Start](#-quick-start)
 - [🚀 Production Deployment](#-production-deployment)
@@ -32,6 +33,10 @@
 - [🛠️ Technologies](#-technologies)
 - [🐛 Troubleshooting](#-troubleshooting)
 - [📄 License](#-license)
+
+## 🖥️ Screenshot
+
+![FlyCal Screenshot](./screenshot.png)
 
 ## ✨ Key Features
 
