@@ -163,24 +163,6 @@ async function saveIdealPrice() {
     }
 }
 
-async function saveCrawlerInterval() {
-    const val = parseInt(document.getElementById('crawlerInterval').value) || 60;
-    try {
-        await API.updateSettings({ crawler_interval: val });
-        // Also update scheduler by toggling (re-enable with new interval)
-        const status = await API.getCrawlerStatus();
-        if (status.enabled) {
-            // Toggle off then on to rebuild scheduler with new interval
-            await API.toggleCrawler();
-            await API.toggleCrawler();
-        }
-        alert('Crawler interval saved.');
-        await loadCrawlerInfo();
-    } catch (e) {
-        alert('Error: ' + e.message);
-    }
-}
-
 function renderTimeSlots() {
     const container = document.getElementById('timeSlotsContainer');
     if (!settingsTimeSlots.length) {
@@ -245,7 +227,6 @@ async function loadCrawlerInfo() {
         const statusText = document.getElementById('crawlerStatus');
         const lastRun = document.getElementById('lastRun');
         const nextRun = document.getElementById('nextRun');
-        const intervalInput = document.getElementById('crawlerInterval');
         const targetInfo = document.getElementById('crawlerTargetInfo');
 
         dot.className = 'crawler-dot ' + (status.enabled ? 'active' : 'inactive');
@@ -253,15 +234,10 @@ async function loadCrawlerInfo() {
 
         if (status.enabled) {
             toggle.classList.add('active');
-            statusText.textContent = 'Active';
+            statusText.textContent = 'Active — runs at 7:00 & 22:00';
         } else {
             toggle.classList.remove('active');
             statusText.textContent = 'Inactive';
-        }
-
-        // Set interval from server
-        if (intervalInput && status.crawler_interval) {
-            intervalInput.value = status.crawler_interval;
         }
 
         // Show target search info

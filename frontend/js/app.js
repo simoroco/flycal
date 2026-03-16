@@ -13,6 +13,7 @@ let isSearching = false;
 // ── Init ──
 async function init() {
     setDefaultDates();
+    setupDateConstraints();
     await Promise.all([
         loadCityList(),
         loadAirlineToggles(),
@@ -20,17 +21,48 @@ async function init() {
         loadSettingsForApp(),
     ]);
     handleUrlParams();
-    if (!currentSearchId) {
-        await autoLaunchLastSearch();
-    }
+    // Always load last search info (dates, airports, etc.)
+    await loadLastSearchInfo();
+    // Check if a background search is still running
+    await checkForBackgroundSearch();
 }
 
 function setDefaultDates() {
     const today = new Date();
     const nextMonth = new Date(today);
     nextMonth.setMonth(nextMonth.getMonth() + 1);
-    document.getElementById('dateFrom').value = formatDateISO(today);
-    document.getElementById('dateTo').value = formatDateISO(nextMonth);
+    const dateFromEl = document.getElementById('dateFrom');
+    const dateToEl = document.getElementById('dateTo');
+    dateFromEl.value = formatDateISO(today);
+    dateToEl.value = formatDateISO(nextMonth);
+    // Set min attribute to prevent past dates
+    dateFromEl.min = formatDateISO(today);
+    dateToEl.min = formatDateISO(today);
+}
+
+function setupDateConstraints() {
+    const dateFromEl = document.getElementById('dateFrom');
+    const dateToEl = document.getElementById('dateTo');
+
+    dateFromEl.addEventListener('change', () => {
+        // Ensure return date is always after departure date
+        if (dateFromEl.value) {
+            const nextDay = new Date(dateFromEl.value + 'T00:00:00');
+            nextDay.setDate(nextDay.getDate() + 1);
+            dateToEl.min = formatDateISO(nextDay);
+            if (dateToEl.value && dateToEl.value <= dateFromEl.value) {
+                dateToEl.value = formatDateISO(nextDay);
+            }
+        }
+    });
+
+    dateToEl.addEventListener('change', () => {
+        if (dateToEl.value && dateFromEl.value && dateToEl.value <= dateFromEl.value) {
+            const nextDay = new Date(dateFromEl.value + 'T00:00:00');
+            nextDay.setDate(nextDay.getDate() + 1);
+            dateToEl.value = formatDateISO(nextDay);
+        }
+    });
 }
 
 function formatDateISO(d) {
@@ -44,6 +76,57 @@ async function loadSettingsForApp() {
         appSettings = await API.getSettings();
     } catch (e) {
         appSettings = { ideal_price: 100, time_slots: [] };
+    }
+}
+
+// ── Always load last search info ──
+async function loadLastSearchInfo() {
+    try {
+        const data = await API.getLastSearch();
+        if (data && data.origin_city) {
+            document.getElementById('originCity').value = (data.origin_city || '').toUpperCase();
+            document.getElementById('destinationCity').value = (data.destination_city || '').toUpperCase();
+            if (data.date_from) document.getElementById('dateFrom').value = data.date_from;
+            if (data.date_to) document.getElementById('dateTo').value = data.date_to;
+            // If search already has results and not currently searching, show them
+            if (data.flights && data.flights.length > 0 && !isSearching) {
+                allFlights = data.flights;
+                currentSearchId = data.id;
+                renderFlights();
+                autoSelectBestFlights();
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load last search info:', e);
+    }
+}
+
+// ── Check for background search (crawler running) ──
+async function checkForBackgroundSearch() {
+    try {
+        const status = await API.getCrawlerStatus();
+        if (status && status.last_run && status.last_run.status === 'running') {
+            // A search is running in background, resume polling
+            const data = await API.getLastSearch();
+            if (data && data.id) {
+                isSearching = true;
+                currentSearchId = data.id;
+                showSearchingState();
+                startPolling(data.id);
+                console.log(`[FlyCal Crawler] Resumed polling for background search #${data.id}`);
+            }
+        } else if (!isSearching) {
+            // Only auto-launch on first session load
+            if (!sessionStorage.getItem('flycal_launched') && !currentSearchId) {
+                const data = await API.getLastSearch();
+                if (data && data.origin_city) {
+                    sessionStorage.setItem('flycal_launched', '1');
+                    launchSearch();
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Failed to check background search:', e);
     }
 }
 
@@ -83,7 +166,6 @@ function getSelectedAirlines() {
 // ── City list for autocomplete (from all scrapers CITY_AIRPORT_MAP) ──
 async function loadCityList() {
     try {
-        // Build a static city list from known cities
         cityList = [
             'PARIS', 'MARRAKECH', 'CASABLANCA', 'NADOR', 'OUJDA', 'TANGIER', 'FEZ',
             'AGADIR', 'RABAT', 'ESSAOUIRA', 'LYON', 'MARSEILLE', 'TOULOUSE', 'BORDEAUX',
@@ -135,29 +217,8 @@ function handleUrlParams() {
 
         if (params.get('autorun') === '1') {
             window.history.replaceState({}, '', '/');
-            // Explicit user action via URL — bypass sessionStorage check
             setTimeout(() => launchSearch(), 300);
         }
-    }
-}
-
-// ── Auto-launch last search (only on first load per session) ──
-async function autoLaunchLastSearch() {
-    // Only auto-launch once per browser session
-    if (sessionStorage.getItem('flycal_launched')) return;
-
-    try {
-        const data = await API.getLastSearch();
-        if (data && data.origin_city) {
-            document.getElementById('originCity').value = (data.origin_city || '').toUpperCase();
-            document.getElementById('destinationCity').value = (data.destination_city || '').toUpperCase();
-            if (data.date_from) document.getElementById('dateFrom').value = data.date_from;
-            if (data.date_to) document.getElementById('dateTo').value = data.date_to;
-            sessionStorage.setItem('flycal_launched', '1');
-            launchSearch();
-        }
-    } catch (e) {
-        console.error('Failed to auto-launch last search:', e);
     }
 }
 
@@ -182,9 +243,35 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// ── Show/hide searching state ──
+function showSearchingState() {
+    const searchBar = document.getElementById('searchBar');
+    const progressBand = document.getElementById('searchProgressBand');
+    const centralLoader = document.getElementById('centralLoader');
+    const btn = document.getElementById('btnSearch');
+    searchBar.classList.add('greyed-out');
+    progressBand.classList.remove('hidden');
+    btn.disabled = true;
+    // Show central loader only if no flights are displayed yet
+    if (allFlights.length === 0 && centralLoader) {
+        centralLoader.classList.remove('hidden');
+    }
+}
+
+function hideSearchingState() {
+    isSearching = false;
+    const searchBar = document.getElementById('searchBar');
+    const progressBand = document.getElementById('searchProgressBand');
+    const centralLoader = document.getElementById('centralLoader');
+    const btn = document.getElementById('btnSearch');
+    searchBar.classList.remove('greyed-out');
+    progressBand.classList.add('hidden');
+    btn.disabled = false;
+    if (centralLoader) centralLoader.classList.add('hidden');
+}
+
 // ── Search ──
 async function launchSearch() {
-    // Prevent multiple concurrent searches
     if (isSearching) {
         console.log('[FlyCal] Search already in progress, ignoring.');
         return;
@@ -202,21 +289,14 @@ async function launchSearch() {
 
     isSearching = true;
 
-    // Grey out search bar, show progress band
-    const searchBar = document.getElementById('searchBar');
-    const progressBand = document.getElementById('searchProgressBand');
     const progressText = document.getElementById('progressText');
-    searchBar.classList.add('greyed-out');
-    progressBand.classList.remove('hidden');
     progressText.textContent = `${origin} → ${destination} | ${dateFrom} → ${dateTo}`;
-
-    const btn = document.getElementById('btnSearch');
-    btn.disabled = true;
 
     selectedOutbound = null;
     selectedReturn = null;
     allFlights = [];
     renderFlights();
+    showSearchingState();
 
     try {
         const result = await API.launchSearch({
@@ -233,10 +313,7 @@ async function launchSearch() {
         startPolling(result.search_id);
     } catch (e) {
         alert('Search error: ' + e.message);
-        isSearching = false;
-        searchBar.classList.remove('greyed-out');
-        progressBand.classList.add('hidden');
-        btn.disabled = false;
+        hideSearchingState();
     }
 }
 
@@ -281,6 +358,9 @@ function startPolling(searchId) {
                 allFlights = data.flights;
                 renderFlights();
                 autoSelectBestFlights();
+                // Hide central loader once we have results
+                const centralLoader = document.getElementById('centralLoader');
+                if (centralLoader) centralLoader.classList.add('hidden');
                 if (done) {
                     console.log(`[FlyCal Crawler] Search complete: ${allFlights.length} total flights`);
                     clearInterval(pollingTimer);
@@ -311,16 +391,6 @@ function startPolling(searchId) {
     }, 300000);
 }
 
-function hideSearchingState() {
-    isSearching = false;
-    const searchBar = document.getElementById('searchBar');
-    const progressBand = document.getElementById('searchProgressBand');
-    const btn = document.getElementById('btnSearch');
-    searchBar.classList.remove('greyed-out');
-    progressBand.classList.add('hidden');
-    btn.disabled = false;
-}
-
 // ── Auto-select best flights: earliest outbound, latest return ──
 function autoSelectBestFlights() {
     if (selectedOutbound && selectedReturn) return;
@@ -329,7 +399,6 @@ function autoSelectBestFlights() {
     const ret = allFlights.filter(f => f.direction === 'return');
 
     if (outbound.length > 0 && !selectedOutbound) {
-        // Earliest outbound: sort by date then time
         const sorted = [...outbound].sort((a, b) => {
             if (a.flight_date !== b.flight_date) return a.flight_date.localeCompare(b.flight_date);
             return (a.departure_time || '').localeCompare(b.departure_time || '');
@@ -338,7 +407,6 @@ function autoSelectBestFlights() {
     }
 
     if (ret.length > 0 && !selectedReturn) {
-        // Latest return: sort by date desc then time desc
         const sorted = [...ret].sort((a, b) => {
             if (a.flight_date !== b.flight_date) return b.flight_date.localeCompare(a.flight_date);
             return (b.departure_time || '').localeCompare(a.departure_time || '');
@@ -349,20 +417,22 @@ function autoSelectBestFlights() {
     renderFlights();
 }
 
-// ── Week separator helper ──
+// ── Week helpers ──
+function getISOWeekNumber(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
 function getMondayOfWeek(dateStr) {
     const d = new Date(dateStr + 'T00:00:00');
-    const day = d.getDay(); // 0=Sun, 1=Mon, ...
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     const monday = new Date(d);
     monday.setDate(diff);
     return monday;
-}
-
-function formatWeekLabel(mondayDate) {
-    const dd = String(mondayDate.getDate()).padStart(2, '0');
-    const mm = String(mondayDate.getMonth() + 1).padStart(2, '0');
-    return `Week of ${dd}/${mm}`;
 }
 
 // ── Render flights with vertical calendar layout ──
@@ -370,7 +440,6 @@ function renderFlights() {
     const outbound = allFlights.filter(f => f.direction === 'outbound');
     const ret = allFlights.filter(f => f.direction === 'return');
 
-    // Collect all dates
     const allDates = new Set();
     outbound.forEach(f => allDates.add(f.flight_date));
     ret.forEach(f => allDates.add(f.flight_date));
@@ -395,7 +464,6 @@ function renderFlights() {
     if (emptyOut) emptyOut.classList.add('hidden');
     if (emptyRet) emptyRet.classList.add('hidden');
 
-    // Group by date
     const outByDate = {};
     const retByDate = {};
     outbound.forEach(f => { (outByDate[f.flight_date] = outByDate[f.flight_date] || []).push(f); });
@@ -404,21 +472,24 @@ function renderFlights() {
     let outHtml = '';
     let calHtml = '';
     let retHtml = '';
-    let prevMonday = null;
+    let prevMondayStr = null;
+    let isFirstDate = true;
 
     for (const dateKey of sortedDates) {
-        // Week separator
         const currentMonday = getMondayOfWeek(dateKey);
         const currentMondayStr = formatDateISO(currentMonday);
-        if (prevMonday === null || currentMondayStr !== prevMonday) {
-            if (prevMonday !== null) {
-                // Insert week separator in all 3 columns
-                const weekLabel = formatWeekLabel(currentMonday);
+        const weekNum = getISOWeekNumber(dateKey);
+
+        // Week separator when week changes
+        if (currentMondayStr !== prevMondayStr) {
+            if (!isFirstDate) {
+                // Week separator in all 3 columns
+                const weekLabel = `Week ${weekNum}`;
                 outHtml += `<div class="week-separator"><span>${weekLabel}</span></div>`;
                 calHtml += `<div class="week-separator"><span>${weekLabel}</span></div>`;
                 retHtml += `<div class="week-separator"><span>${weekLabel}</span></div>`;
             }
-            prevMonday = currentMondayStr;
+            prevMondayStr = currentMondayStr;
         }
 
         const dayFlightsOut = (outByDate[dateKey] || []).sort((a, b) =>
@@ -428,11 +499,9 @@ function renderFlights() {
             (a.departure_time || '').localeCompare(b.departure_time || '')
         );
 
-        // Determine dim state
         const isDimForOutbound = selectedReturn && dateKey > selectedReturn.flight_date;
         const isDimForReturn = selectedOutbound && dateKey < selectedOutbound.flight_date;
 
-        // Calendar column
         const d = new Date(dateKey + 'T00:00:00');
         const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
         const dayNum = d.getDate();
@@ -444,19 +513,19 @@ function renderFlights() {
             <span class="cal-month">${monthName}</span>
         </div>`;
 
-        // Outbound flights for this day
         outHtml += `<div class="day-row${isDimForOutbound ? ' dimmed' : ''}" data-date="${dateKey}">`;
         if (dayFlightsOut.length > 0) {
             outHtml += renderDayFlights(dayFlightsOut, 'outbound', isDimForOutbound);
         }
         outHtml += `</div>`;
 
-        // Return flights for this day
         retHtml += `<div class="day-row${isDimForReturn ? ' dimmed' : ''}" data-date="${dateKey}">`;
         if (dayFlightsRet.length > 0) {
             retHtml += renderDayFlights(dayFlightsRet, 'return', isDimForReturn);
         }
         retHtml += `</div>`;
+
+        isFirstDate = false;
     }
 
     outContainer.innerHTML = outHtml;
@@ -481,7 +550,6 @@ function renderDayFlights(flights, direction, isDimmed) {
                       onmouseenter="showPriceHistory(this, ${f.id})"
                       onmouseleave="hidePriceHistory(this)">`;
 
-        // Compact single-line: logo | times | airports | price | oldest price
         if (f.airline_logo_url) {
             html += `<img src="${f.airline_logo_url}" alt="${f.airline_name}" class="flight-row-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`;
             html += `<span class="flight-row-abbrev" style="display:none">${abbrev}</span>`;
@@ -496,7 +564,6 @@ function renderDayFlights(flights, direction, isDimmed) {
         html += `<span class="flight-row-airports">${f.origin_airport || '???'}→${f.destination_airport || '???'}</span>`;
         html += `<span class="flight-row-price">${Math.round(f.price)}€</span>`;
 
-        // Oldest recorded price (only if ≥2 history entries)
         if (f.oldest_price != null && f.oldest_price !== f.price) {
             const diff = f.price - f.oldest_price;
             const arrow = diff < 0 ? '↓' : '↑';
@@ -592,7 +659,6 @@ function updateRecap() {
         retDetail.textContent = '—';
     }
 
-    // Trip days (excluding flight days)
     if (selectedOutbound && selectedReturn) {
         const outDate = new Date(selectedOutbound.flight_date + 'T00:00:00');
         const retDate = new Date(selectedReturn.flight_date + 'T00:00:00');
@@ -603,7 +669,6 @@ function updateRecap() {
         daysEl.textContent = '—';
     }
 
-    // Fee breakdown
     const grandTotal = totalBase + totalFixed + totalPercent;
     if (totalFixed > 0 || totalPercent > 0) {
         breakdownEl.textContent = `${Math.round(totalBase)}€ + ${Math.round(totalFixed)}€ fees + ${Math.round(totalPercent)}€ %`;

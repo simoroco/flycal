@@ -15,8 +15,8 @@
                 <span class="logo-text">FlyCal</span>
             </div>
             <nav class="nav">
-                <a href="/" class="nav-link active">Home</a>
-                <a href="/searches.html" class="nav-link">Searches</a>
+                <a href="/" class="nav-link active">Scan</a>
+                <a href="/searches.html" class="nav-link">History</a>
                 <a href="/settings.html" class="nav-link">Settings</a>
             </nav>
         </div>
@@ -31,15 +31,20 @@
     <section class="search-bar" id="searchBar">
         <div class="search-bar-inner">
             <div class="search-row-compact">
+                <span class="search-label">WHERE:</span>
                 <input type="text" id="originCity" placeholder="From" autocomplete="off" class="compact-input city-input" list="cityList">
                 <span class="compact-arrow">→</span>
                 <input type="text" id="destinationCity" placeholder="To" autocomplete="off" class="compact-input city-input" list="cityList">
+                <span class="search-divider"></span>
+                <span class="search-label">DATES:</span>
                 <input type="date" id="dateFrom" class="compact-input date-input">
                 <span class="compact-arrow">→</span>
                 <input type="date" id="dateTo" class="compact-input date-input">
+                <span class="search-divider"></span>
+                <span class="search-label">AIRLINES:</span>
                 <div class="airline-toggles" id="airlineToggles"></div>
                 <button class="btn-search" id="btnSearch" onclick="launchSearch()">
-                    <span id="searchBtnText">Search</span>
+                    <span id="searchBtnText">SCAN</span>
                     <span id="searchLoader" class="loader hidden"></span>
                 </button>
             </div>
@@ -55,6 +60,14 @@
             <button class="btn-cancel" id="btnCancel" onclick="cancelSearch()">Cancel</button>
         </div>
     </section>
+
+    <!-- Central loader overlay -->
+    <div class="central-loader hidden" id="centralLoader">
+        <div class="central-loader-inner">
+            <div class="loader" style="width:36px;height:36px;border-width:3px"></div>
+            <p>Scanning flights...</p>
+        </div>
+    </div>
 
     <!-- Recap Banner (sticky): days | OUT | TOTAL | RET | fees -->
     <section class="recap-banner hidden" id="recapBanner">

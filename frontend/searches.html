@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlyCal — Searches</title>
+    <title>FlyCal — History</title>
     <link rel="stylesheet" href="/css/main.css">
     <link rel="stylesheet" href="/css/calendar.css">
 </head>
@@ -15,8 +15,8 @@
                 <span class="logo-text">FlyCal</span>
             </div>
             <nav class="nav">
-                <a href="/" class="nav-link">Home</a>
-                <a href="/searches.html" class="nav-link active">Searches</a>
+                <a href="/" class="nav-link">Scan</a>
+                <a href="/searches.html" class="nav-link active">History</a>
                 <a href="/settings.html" class="nav-link">Settings</a>
             </nav>
         </div>
@@ -29,7 +29,7 @@
     </header>
 
     <main class="page-content">
-        <h1 class="page-title">Search History</h1>
+        <h1 class="page-title">History</h1>
         <div class="glass-card">
             <div class="table-wrapper">
                 <table class="data-table" id="searchesTable">
@@ -100,10 +100,10 @@
                 const airlinesHtml = (s.airlines || []).map(name => {
                     const flight = (s.flights || []).find(f => f.airline_name === name && f.airline_logo_url);
                     if (flight && flight.airline_logo_url) {
-                        return `<img src="${flight.airline_logo_url}" alt="${name}" title="${name}" style="width:20px;height:20px;border-radius:3px;vertical-align:middle;margin-right:2px" onerror="this.outerHTML='${name}'">`;
+                        return `<img src="${flight.airline_logo_url}" alt="${name}" title="${name}" style="width:20px;height:20px;border-radius:3px;vertical-align:middle;margin-right:2px" onerror="this.style.display='none'">`;
                     }
-                    return name;
-                }).join(' ') || 'All';
+                    return `<span title="${name}" style="display:inline-block;width:20px;height:20px;border-radius:3px;background:var(--glass-bg);text-align:center;line-height:20px;font-size:0.5rem;font-weight:700;color:var(--accent);vertical-align:middle;margin-right:2px">${(name||'').substring(0,2).toUpperCase()}</span>`;
+                }).join('') || 'All';
 
                 const statusClass = s.status === 'success' ? 'status-success' :
                                     s.status === 'running' ? 'status-running' :

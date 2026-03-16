@@ -4,7 +4,7 @@
     {
       "name": "flycal-frontend",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["http-server", "frontend", "-p", "8080", "--cors", "-c-1", "--proxy", "https://localhost:4444"],
+      "runtimeArgs": ["http-server", "frontend", "-p", "8080", "--cors", "-c-1", "--proxy", "http://localhost:4445"],
       "port": 8080
     }
   ]

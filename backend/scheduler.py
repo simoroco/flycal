@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 import pytz
 
 logger = logging.getLogger("flycal.scheduler")
@@ -11,20 +11,6 @@ logger = logging.getLogger("flycal.scheduler")
 _scheduler: AsyncIOScheduler = None
 JOB_ID = "flycal_crawler"
 TZ = pytz.timezone("Europe/Paris")
-
-
-def _get_crawler_interval() -> int:
-    """Read crawler_interval from settings, default 60 minutes."""
-    try:
-        from database import SessionLocal, Setting
-        db = SessionLocal()
-        try:
-            row = db.query(Setting).filter(Setting.key == "crawler_interval").first()
-            return int(row.value) if row and row.value else 60
-        finally:
-            db.close()
-    except Exception:
-        return 60
 
 
 async def _scheduled_crawl():
@@ -49,28 +35,32 @@ async def _scheduled_crawl():
     from routers.flights import _run_scraping
     await _run_scraping(search_id)
 
+    # Send email after crawl if enabled
+    try:
+        from email_service import send_crawl_recap
+        send_crawl_recap(search_id)
+    except Exception as e:
+        logger.error(f"Failed to send post-crawl email: {e}")
 
-def _build_trigger(interval_minutes: int = None):
-    if interval_minutes is None:
-        interval_minutes = _get_crawler_interval()
-    return IntervalTrigger(minutes=max(1, interval_minutes), timezone=TZ)
+
+def _build_trigger():
+    return CronTrigger(hour="7,22", minute=0, timezone=TZ)
 
 
 def init_scheduler():
     global _scheduler
     _scheduler = AsyncIOScheduler(timezone=TZ)
 
-    interval = _get_crawler_interval()
     _scheduler.add_job(
         _scheduled_crawl,
-        _build_trigger(interval),
+        _build_trigger(),
         id=JOB_ID,
         replace_existing=True,
         misfire_grace_time=3600,
     )
 
     _scheduler.start()
-    logger.info(f"APScheduler started with interval of {interval} minutes")
+    logger.info("APScheduler started with cron schedule at 7:00 and 22:00 Europe/Paris")
 
 
 def get_next_run_time() -> str:
@@ -89,15 +79,14 @@ def update_scheduler_state(enabled: bool):
         return
     job = _scheduler.get_job(JOB_ID)
     if enabled:
-        interval = _get_crawler_interval()
         _scheduler.add_job(
             _scheduled_crawl,
-            _build_trigger(interval),
+            _build_trigger(),
             id=JOB_ID,
             replace_existing=True,
             misfire_grace_time=3600,
         )
-        logger.info(f"Scheduler job enabled with interval {interval} min")
+        logger.info("Scheduler job enabled (7:00 & 22:00)")
     elif not enabled and job:
         _scheduler.remove_job(JOB_ID)
         logger.info("Scheduler job removed (disabled)")

@@ -14,8 +14,8 @@
                 <span class="logo-text">FlyCal</span>
             </div>
             <nav class="nav">
-                <a href="/" class="nav-link">Home</a>
-                <a href="/searches.html" class="nav-link">Searches</a>
+                <a href="/" class="nav-link">Scan</a>
+                <a href="/searches.html" class="nav-link">History</a>
                 <a href="/settings.html" class="nav-link active">Settings</a>
             </nav>
         </div>
@@ -41,17 +41,13 @@
 
         <section class="settings-section glass-card">
             <h2>Stay Updated with Automatic Crawler</h2>
+            <p class="text-muted" style="margin-bottom:10px">When enabled, the crawler runs automatically at 7:00 and 22:00 daily.</p>
             <div class="form-row">
                 <label>Enable</label>
                 <div class="toggle-switch" id="crawlerToggle" onclick="toggleCrawler()">
                     <div class="toggle-slider"></div>
                 </div>
                 <span id="crawlerStatus" class="status-text">Inactive</span>
-            </div>
-            <div class="form-row" style="margin-top:8px">
-                <label>Interval (minutes)</label>
-                <input type="number" id="crawlerInterval" min="1" step="1" value="60" class="input-field input-sm" style="width:80px">
-                <button class="btn-sm btn-accent" onclick="saveCrawlerInterval()">Save</button>
             </div>
             <div id="crawlerTargetInfo" class="crawler-info" style="margin-top:8px"></div>
             <div class="crawler-info">
