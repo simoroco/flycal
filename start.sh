@@ -8,8 +8,8 @@ docker compose up --build -d
 
 echo "Waiting for the application to be ready..."
 for i in $(seq 1 30); do
-    if curl -ks https://localhost:4445 > /dev/null 2>&1; then
-        echo "✓ FlyCal is running at https://localhost:4445"
+    if curl -ks https://localhost:4444 > /dev/null 2>&1; then
+        echo "✓ FlyCal is running at https://localhost:4444"
         exit 0
     fi
     sleep 2

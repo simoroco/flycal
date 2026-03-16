@@ -37,6 +37,7 @@
                 <input type="date" id="dateFrom" class="compact-input date-input">
                 <span class="compact-arrow">→</span>
                 <input type="date" id="dateTo" class="compact-input date-input">
+                <div class="airline-toggles" id="airlineToggles"></div>
                 <button class="btn-search" id="btnSearch" onclick="launchSearch()">
                     <span id="searchBtnText">Search</span>
                     <span id="searchLoader" class="loader hidden"></span>
@@ -55,27 +56,27 @@
         </div>
     </section>
 
-    <!-- Recap Banner (sticky) -->
+    <!-- Recap Banner (sticky): days | OUT | TOTAL | RET | fees -->
     <section class="recap-banner hidden" id="recapBanner">
         <div class="recap-inner">
+            <div class="recap-section recap-days">
+                <span class="recap-tag">DAYS</span>
+                <span class="recap-detail" id="recapDays">—</span>
+            </div>
             <div class="recap-section recap-outbound">
                 <span class="recap-tag">OUT</span>
                 <span class="recap-detail" id="recapOutDetail">—</span>
+            </div>
+            <div class="recap-total-box">
+                <span class="recap-total-label">TOTAL</span>
+                <span class="recap-total-price" id="recapTotal">0 €</span>
             </div>
             <div class="recap-section recap-return">
                 <span class="recap-tag">RET</span>
                 <span class="recap-detail" id="recapRetDetail">—</span>
             </div>
-            <div class="recap-section recap-days">
-                <span class="recap-tag">DAYS</span>
-                <span class="recap-detail" id="recapDays">—</span>
-            </div>
             <div class="recap-section recap-fees">
                 <span class="recap-breakdown" id="recapBreakdown"></span>
-            </div>
-            <div class="recap-total-box">
-                <span class="recap-total-label">TOTAL</span>
-                <span class="recap-total-price" id="recapTotal">0 €</span>
             </div>
         </div>
     </section>

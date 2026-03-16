@@ -7,12 +7,14 @@ let selectedReturn = null;
 let pollingTimer = null;
 let appSettings = null;
 let cityList = [];
+let airlinesList = [];
 
 // ── Init ──
 async function init() {
     setDefaultDates();
     await Promise.all([
         loadCityList(),
+        loadAirlineToggles(),
         loadCrawlerStatus(),
         loadSettingsForApp(),
     ]);
@@ -44,10 +46,42 @@ async function loadSettingsForApp() {
     }
 }
 
+// ── Airline toggles in search bar ──
+async function loadAirlineToggles() {
+    try {
+        airlinesList = await API.getAirlines();
+        const container = document.getElementById('airlineToggles');
+        container.innerHTML = airlinesList
+            .filter(a => a.enabled)
+            .map(a => {
+                const logoHtml = a.logo_url
+                    ? `<img src="${a.logo_url}" alt="${a.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                    : '';
+                const abbrev = (a.name || '??').substring(0, 2).toUpperCase();
+                return `<div class="airline-toggle active" data-airline="${a.name}" onclick="toggleAirline(this)" title="${a.name}">
+                    ${logoHtml}
+                    <span class="at-abbrev" ${a.logo_url ? 'style="display:none"' : ''}>${abbrev}</span>
+                </div>`;
+            }).join('');
+    } catch (e) {
+        console.error('Failed to load airline toggles:', e);
+    }
+}
+
+function toggleAirline(el) {
+    el.classList.toggle('active');
+}
+
+function getSelectedAirlines() {
+    const toggles = document.querySelectorAll('.airline-toggle.active');
+    const names = [];
+    toggles.forEach(t => names.push(t.dataset.airline));
+    return names;
+}
+
 // ── City list for autocomplete (from all scrapers CITY_AIRPORT_MAP) ──
 async function loadCityList() {
     try {
-        const airlines = await API.getAirlines();
         // Build a static city list from known cities
         cityList = [
             'PARIS', 'MARRAKECH', 'CASABLANCA', 'NADOR', 'OUJDA', 'TANGIER', 'FEZ',
@@ -178,7 +212,7 @@ async function launchSearch() {
             date_from: dateFrom,
             date_to: dateTo,
             trip_type: 'roundtrip',
-            airlines: [],
+            airlines: getSelectedAirlines(),
         });
 
         currentSearchId = result.search_id;

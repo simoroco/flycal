@@ -31,7 +31,7 @@
 }
 
 .cal-day-num {
-    font-size: 1rem;
+    font-size: 1.3rem;
     font-weight: 700;
     color: var(--text);
     line-height: 1.1;
@@ -62,14 +62,15 @@
 .flight-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
+    gap: 5px;
+    padding: 3px 6px;
     border-radius: 6px;
     cursor: pointer;
     transition: all var(--transition);
     border-left: 3px solid transparent;
     position: relative;
     font-size: 0.78rem;
+    height: 30px;
 }
 
 .flight-row:hover {
@@ -97,20 +98,24 @@
 .flight-row.color-red:hover { background: var(--red-bg); }
 
 .flight-row-logo {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     border-radius: 4px;
     object-fit: contain;
     flex-shrink: 0;
+    margin: 0;
+    padding: 0;
 }
 
 .flight-row-abbrev {
     font-size: 0.6rem;
     font-weight: 700;
     color: var(--accent);
-    width: 20px;
+    width: 24px;
     text-align: center;
     flex-shrink: 0;
+    margin: 0;
+    padding: 0;
 }
 
 .flight-row-times {

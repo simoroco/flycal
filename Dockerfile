@@ -38,6 +38,6 @@ COPY frontend /app/frontend
 
 RUN mkdir -p /app/data
 
-EXPOSE 4445
+EXPOSE 4444
 
-CMD ["sh", "-c", "caddy run --config /app/Caddyfile & cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "caddy run --config /app/Caddyfile & cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 4445"]
