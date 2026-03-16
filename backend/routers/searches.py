@@ -21,6 +21,7 @@ def _flight_to_dict(f):
         "airline_name": f.airline.name if f.airline else "",
         "airline_fees_fixed": f.airline.fees_fixed if f.airline else 0,
         "airline_fees_percent": f.airline.fees_percent if f.airline else 0,
+        "airline_logo_url": f.airline.logo_url if f.airline else None,
         "direction": f.direction,
         "flight_date": f.flight_date.isoformat() if f.flight_date else "",
         "departure_time": str(f.departure_time) if f.departure_time else "",

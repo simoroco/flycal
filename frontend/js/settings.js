@@ -154,10 +154,28 @@ async function addAirline() {
 }
 
 async function saveIdealPrice() {
-    const val = document.getElementById('idealPrice').value;
+    const val = parseInt(document.getElementById('idealPrice').value) || 100;
     try {
         await API.updateSettings({ ideal_price: val });
         alert('Reference price saved.');
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+async function saveCrawlerInterval() {
+    const val = parseInt(document.getElementById('crawlerInterval').value) || 60;
+    try {
+        await API.updateSettings({ crawler_interval: val });
+        // Also update scheduler by toggling (re-enable with new interval)
+        const status = await API.getCrawlerStatus();
+        if (status.enabled) {
+            // Toggle off then on to rebuild scheduler with new interval
+            await API.toggleCrawler();
+            await API.toggleCrawler();
+        }
+        alert('Crawler interval saved.');
+        await loadCrawlerInfo();
     } catch (e) {
         alert('Error: ' + e.message);
     }
@@ -227,9 +245,11 @@ async function loadCrawlerInfo() {
         const statusText = document.getElementById('crawlerStatus');
         const lastRun = document.getElementById('lastRun');
         const nextRun = document.getElementById('nextRun');
+        const intervalInput = document.getElementById('crawlerInterval');
+        const targetInfo = document.getElementById('crawlerTargetInfo');
 
         dot.className = 'crawler-dot ' + (status.enabled ? 'active' : 'inactive');
-        label.textContent = status.enabled ? 'Crawler ON' : 'Crawler OFF';
+        label.textContent = status.enabled ? 'Stay Updated ON' : 'On-demand Only';
 
         if (status.enabled) {
             toggle.classList.add('active');
@@ -237,6 +257,27 @@ async function loadCrawlerInfo() {
         } else {
             toggle.classList.remove('active');
             statusText.textContent = 'Inactive';
+        }
+
+        // Set interval from server
+        if (intervalInput && status.crawler_interval) {
+            intervalInput.value = status.crawler_interval;
+        }
+
+        // Show target search info
+        if (targetInfo) {
+            if (status.enabled && status.target_search) {
+                const ts = status.target_search;
+                const since = status.crawler_started_at
+                    ? new Date(status.crawler_started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    : '—';
+                targetInfo.innerHTML = `<p style="color:var(--accent);font-size:0.8rem">
+                    Crawling <strong>${(ts.origin_city || '').toUpperCase()} → ${(ts.destination_city || '').toUpperCase()}</strong>
+                    (${ts.date_from} → ${ts.date_to}) since ${since}
+                </p>`;
+            } else {
+                targetInfo.innerHTML = '';
+            }
         }
 
         if (status.last_run && status.last_run.started_at) {

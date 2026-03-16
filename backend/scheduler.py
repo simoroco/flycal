@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 import pytz
 
 logger = logging.getLogger("flycal.scheduler")
@@ -11,6 +11,20 @@ logger = logging.getLogger("flycal.scheduler")
 _scheduler: AsyncIOScheduler = None
 JOB_ID = "flycal_crawler"
 TZ = pytz.timezone("Europe/Paris")
+
+
+def _get_crawler_interval() -> int:
+    """Read crawler_interval from settings, default 60 minutes."""
+    try:
+        from database import SessionLocal, Setting
+        db = SessionLocal()
+        try:
+            row = db.query(Setting).filter(Setting.key == "crawler_interval").first()
+            return int(row.value) if row and row.value else 60
+        finally:
+            db.close()
+    except Exception:
+        return 60
 
 
 async def _scheduled_crawl():
@@ -36,20 +50,27 @@ async def _scheduled_crawl():
     await _run_scraping(search_id)
 
 
+def _build_trigger(interval_minutes: int = None):
+    if interval_minutes is None:
+        interval_minutes = _get_crawler_interval()
+    return IntervalTrigger(minutes=max(1, interval_minutes), timezone=TZ)
+
+
 def init_scheduler():
     global _scheduler
     _scheduler = AsyncIOScheduler(timezone=TZ)
 
+    interval = _get_crawler_interval()
     _scheduler.add_job(
         _scheduled_crawl,
-        CronTrigger(hour="7,20", minute=0, timezone=TZ),
+        _build_trigger(interval),
         id=JOB_ID,
         replace_existing=True,
         misfire_grace_time=3600,
     )
 
     _scheduler.start()
-    logger.info("APScheduler started with jobs at 07:00 and 20:00 Europe/Paris")
+    logger.info(f"APScheduler started with interval of {interval} minutes")
 
 
 def get_next_run_time() -> str:
@@ -67,15 +88,17 @@ def update_scheduler_state(enabled: bool):
     if not _scheduler:
         return
     job = _scheduler.get_job(JOB_ID)
-    if enabled and not job:
+    if enabled:
+        interval = _get_crawler_interval()
         _scheduler.add_job(
             _scheduled_crawl,
-            CronTrigger(hour="7,20", minute=0, timezone=TZ),
+            _build_trigger(interval),
             id=JOB_ID,
             replace_existing=True,
             misfire_grace_time=3600,
         )
-        logger.info("Scheduler job re-enabled")
+        logger.info(f"Scheduler job enabled with interval {interval} min")
     elif not enabled and job:
-        pass
+        _scheduler.remove_job(JOB_ID)
+        logger.info("Scheduler job removed (disabled)")
     logger.info(f"Scheduler state updated: enabled={enabled}")

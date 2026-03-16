@@ -95,7 +95,16 @@
                 const created = s.created_at ? new Date(s.created_at).toLocaleDateString('en-US', {
                     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                 }) : '—';
-                const airlines = (s.airlines || []).join(', ') || 'All';
+
+                // Airlines with logos
+                const airlinesHtml = (s.airlines || []).map(name => {
+                    const flight = (s.flights || []).find(f => f.airline_name === name && f.airline_logo_url);
+                    if (flight && flight.airline_logo_url) {
+                        return `<img src="${flight.airline_logo_url}" alt="${name}" title="${name}" style="width:20px;height:20px;border-radius:3px;vertical-align:middle;margin-right:2px" onerror="this.outerHTML='${name}'">`;
+                    }
+                    return name;
+                }).join(' ') || 'All';
+
                 const statusClass = s.status === 'success' ? 'status-success' :
                                     s.status === 'running' ? 'status-running' :
                                     s.status === 'error' ? 'status-error' : 'status-unknown';
@@ -108,7 +117,7 @@
                     <td>${created}</td>
                     <td><strong>${(s.origin_city || '').toUpperCase()}</strong> → <strong>${(s.destination_city || '').toUpperCase()}</strong></td>
                     <td>${s.date_from} → ${s.date_to}</td>
-                    <td>${airlines}</td>
+                    <td>${airlinesHtml}</td>
                     <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
                     <td>${s.flight_count || 0} flights</td>
                     <td class="actions-cell" onclick="event.stopPropagation()">
@@ -116,7 +125,7 @@
                     </td>
                 </tr>`;
 
-                // Expandable sub-section with flight results
+                // Expandable sub-section with compact flight results
                 if (isExpanded && s.flights && s.flights.length > 0) {
                     const outbound = s.flights.filter(f => f.direction === 'outbound');
                     const ret = s.flights.filter(f => f.direction === 'return');
@@ -125,11 +134,15 @@
                             <div class="search-expand-flights">
                                 <div class="search-expand-col">
                                     <h4>Outbound (${outbound.length})</h4>
-                                    <div id="expandOut_${s.id}" class="calendar-container"></div>
+                                    <div class="search-expand-compact">
+                                        ${renderCompactFlights(outbound)}
+                                    </div>
                                 </div>
                                 <div class="search-expand-col">
                                     <h4>Return (${ret.length})</h4>
-                                    <div id="expandRet_${s.id}" class="calendar-container"></div>
+                                    <div class="search-expand-compact">
+                                        ${renderCompactFlights(ret)}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -143,19 +156,49 @@
                 }
             }
             tbody.innerHTML = html;
+        }
 
-            // Render expanded calendars after DOM insertion
-            if (expandedSearchId) {
-                const s = allSearches.find(x => x.id === expandedSearchId);
-                if (s && s.flights && s.flights.length > 0) {
-                    const outbound = s.flights.filter(f => f.direction === 'outbound');
-                    const ret = s.flights.filter(f => f.direction === 'return');
-                    const outEl = document.getElementById(`expandOut_${s.id}`);
-                    const retEl = document.getElementById(`expandRet_${s.id}`);
-                    if (outEl) renderCalendar(outEl, outbound, null, () => {}, searchesSettings);
-                    if (retEl) renderCalendar(retEl, ret, null, () => {}, searchesSettings);
+        function renderCompactFlights(flights) {
+            if (!flights || flights.length === 0) return '<p class="text-muted">No flights</p>';
+
+            // Group by date
+            const byDate = {};
+            flights.forEach(f => { (byDate[f.flight_date] = byDate[f.flight_date] || []).push(f); });
+            const sortedDates = Object.keys(byDate).sort();
+
+            let html = '';
+            for (const dateKey of sortedDates) {
+                const d = new Date(dateKey + 'T00:00:00');
+                const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+                const dayNum = d.getDate();
+                const monthName = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+                html += `<div class="compact-day-header">${dayName} ${dayNum} ${monthName}</div>`;
+
+                const dayFlights = byDate[dateKey].sort((a, b) =>
+                    (a.departure_time || '').localeCompare(b.departure_time || '')
+                );
+                for (const f of dayFlights) {
+                    const color = searchesSettings ? getFlightColor(f, searchesSettings) : 'orange';
+                    const abbrev = (f.airline_name || '??').substring(0, 2).toUpperCase();
+                    const duration = calculateDuration(f.departure_time, f.arrival_time);
+
+                    html += `<div class="flight-row color-${color}" style="height:26px;font-size:0.72rem">`;
+                    if (f.airline_logo_url) {
+                        html += `<img src="${f.airline_logo_url}" alt="${f.airline_name}" class="flight-row-logo" style="width:20px;height:20px" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`;
+                        html += `<span class="flight-row-abbrev" style="display:none;width:20px;font-size:0.55rem">${abbrev}</span>`;
+                    } else {
+                        html += `<span class="flight-row-abbrev" style="width:20px;font-size:0.55rem">${abbrev}</span>`;
+                    }
+                    html += `<span class="flight-row-times">${f.departure_time || '--:--'} → ${f.arrival_time || '--:--'}</span>`;
+                    if (duration) {
+                        html += `<span class="flight-row-duration">${duration}</span>`;
+                    }
+                    html += `<span class="flight-row-airports">${f.origin_airport || '???'}→${f.destination_airport || '???'}</span>`;
+                    html += `<span class="flight-row-price">${Math.round(f.price)}€</span>`;
+                    html += `</div>`;
                 }
             }
+            return html;
         }
 
         function toggleExpand(searchId) {
@@ -201,5 +244,19 @@
             loadCrawlerStatus();
         });
     </script>
+
+    <style>
+        .compact-day-header {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--accent);
+            padding: 4px 6px 2px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .search-expand-compact {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
 </body>
 </html>

@@ -8,6 +8,7 @@ let pollingTimer = null;
 let appSettings = null;
 let cityList = [];
 let airlinesList = [];
+let isSearching = false;
 
 // ── Init ──
 async function init() {
@@ -118,7 +119,7 @@ async function loadCrawlerStatus() {
         const label = document.getElementById('crawlerLabel');
         if (dot && label) {
             dot.className = 'crawler-dot ' + (status.enabled ? 'active' : 'inactive');
-            label.textContent = status.enabled ? 'Crawler ON' : 'Crawler OFF';
+            label.textContent = status.enabled ? 'Stay Updated ON' : 'On-demand Only';
         }
     } catch (e) {}
 }
@@ -134,13 +135,17 @@ function handleUrlParams() {
 
         if (params.get('autorun') === '1') {
             window.history.replaceState({}, '', '/');
+            // Explicit user action via URL — bypass sessionStorage check
             setTimeout(() => launchSearch(), 300);
         }
     }
 }
 
-// ── Auto-launch last search (new scraping, not cached) ──
+// ── Auto-launch last search (only on first load per session) ──
 async function autoLaunchLastSearch() {
+    // Only auto-launch once per browser session
+    if (sessionStorage.getItem('flycal_launched')) return;
+
     try {
         const data = await API.getLastSearch();
         if (data && data.origin_city) {
@@ -148,7 +153,7 @@ async function autoLaunchLastSearch() {
             document.getElementById('destinationCity').value = (data.destination_city || '').toUpperCase();
             if (data.date_from) document.getElementById('dateFrom').value = data.date_from;
             if (data.date_to) document.getElementById('dateTo').value = data.date_to;
-            // Auto-launch new search with same params
+            sessionStorage.setItem('flycal_launched', '1');
             launchSearch();
         }
     } catch (e) {
@@ -179,6 +184,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Search ──
 async function launchSearch() {
+    // Prevent multiple concurrent searches
+    if (isSearching) {
+        console.log('[FlyCal] Search already in progress, ignoring.');
+        return;
+    }
+
     const origin = document.getElementById('originCity').value.trim().toUpperCase();
     const destination = document.getElementById('destinationCity').value.trim().toUpperCase();
     const dateFrom = document.getElementById('dateFrom').value;
@@ -188,6 +199,8 @@ async function launchSearch() {
         alert('Please fill in all search fields.');
         return;
     }
+
+    isSearching = true;
 
     // Grey out search bar, show progress band
     const searchBar = document.getElementById('searchBar');
@@ -216,9 +229,11 @@ async function launchSearch() {
         });
 
         currentSearchId = result.search_id;
+        console.log(`[FlyCal Crawler] Search started: #${result.search_id} ${origin}→${destination}`);
         startPolling(result.search_id);
     } catch (e) {
         alert('Search error: ' + e.message);
+        isSearching = false;
         searchBar.classList.remove('greyed-out');
         progressBand.classList.add('hidden');
         btn.disabled = false;
@@ -229,6 +244,7 @@ async function launchSearch() {
 async function cancelSearch() {
     try {
         await API.cancelSearch();
+        console.log('[FlyCal Crawler] Search cancelled');
     } catch (e) {
         console.error('Cancel failed:', e);
     }
@@ -242,6 +258,9 @@ async function cancelSearch() {
 // ── Polling ──
 function startPolling(searchId) {
     if (pollingTimer) clearInterval(pollingTimer);
+    let prevFlightCount = 0;
+
+    console.log(`[FlyCal Crawler] Polling started for search #${searchId}`);
 
     pollingTimer = setInterval(async () => {
         try {
@@ -249,11 +268,21 @@ function startPolling(searchId) {
             const status = await API.getCrawlerStatus();
             const done = status && status.last_run && status.last_run.status !== 'running';
 
+            const flightCount = data && data.flights ? data.flights.length : 0;
+            if (flightCount !== prevFlightCount) {
+                console.log(`[FlyCal Crawler] Poll: ${flightCount} flights found (${done ? 'complete' : 'running'})`);
+                if (flightCount > prevFlightCount && prevFlightCount > 0) {
+                    console.log(`[FlyCal Crawler] New flights detected: +${flightCount - prevFlightCount}`);
+                }
+                prevFlightCount = flightCount;
+            }
+
             if (data && data.flights && data.flights.length > 0) {
                 allFlights = data.flights;
                 renderFlights();
                 autoSelectBestFlights();
                 if (done) {
+                    console.log(`[FlyCal Crawler] Search complete: ${allFlights.length} total flights`);
                     clearInterval(pollingTimer);
                     pollingTimer = null;
                     hideSearchingState();
@@ -261,6 +290,7 @@ function startPolling(searchId) {
             } else if (done) {
                 allFlights = data ? (data.flights || []) : [];
                 renderFlights();
+                console.log(`[FlyCal Crawler] Search complete: ${allFlights.length} total flights`);
                 clearInterval(pollingTimer);
                 pollingTimer = null;
                 hideSearchingState();
@@ -273,6 +303,7 @@ function startPolling(searchId) {
     // Timeout after 5 minutes
     setTimeout(() => {
         if (pollingTimer) {
+            console.log('[FlyCal Crawler] Search timed out after 5 minutes');
             clearInterval(pollingTimer);
             pollingTimer = null;
             hideSearchingState();
@@ -281,6 +312,7 @@ function startPolling(searchId) {
 }
 
 function hideSearchingState() {
+    isSearching = false;
     const searchBar = document.getElementById('searchBar');
     const progressBand = document.getElementById('searchProgressBand');
     const btn = document.getElementById('btnSearch');
@@ -315,6 +347,22 @@ function autoSelectBestFlights() {
     }
 
     renderFlights();
+}
+
+// ── Week separator helper ──
+function getMondayOfWeek(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const day = d.getDay(); // 0=Sun, 1=Mon, ...
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+    const monday = new Date(d);
+    monday.setDate(diff);
+    return monday;
+}
+
+function formatWeekLabel(mondayDate) {
+    const dd = String(mondayDate.getDate()).padStart(2, '0');
+    const mm = String(mondayDate.getMonth() + 1).padStart(2, '0');
+    return `Week of ${dd}/${mm}`;
 }
 
 // ── Render flights with vertical calendar layout ──
@@ -356,8 +404,23 @@ function renderFlights() {
     let outHtml = '';
     let calHtml = '';
     let retHtml = '';
+    let prevMonday = null;
 
     for (const dateKey of sortedDates) {
+        // Week separator
+        const currentMonday = getMondayOfWeek(dateKey);
+        const currentMondayStr = formatDateISO(currentMonday);
+        if (prevMonday === null || currentMondayStr !== prevMonday) {
+            if (prevMonday !== null) {
+                // Insert week separator in all 3 columns
+                const weekLabel = formatWeekLabel(currentMonday);
+                outHtml += `<div class="week-separator"><span>${weekLabel}</span></div>`;
+                calHtml += `<div class="week-separator"><span>${weekLabel}</span></div>`;
+                retHtml += `<div class="week-separator"><span>${weekLabel}</span></div>`;
+            }
+            prevMonday = currentMondayStr;
+        }
+
         const dayFlightsOut = (outByDate[dateKey] || []).sort((a, b) =>
             (a.departure_time || '').localeCompare(b.departure_time || '')
         );
@@ -418,7 +481,7 @@ function renderDayFlights(flights, direction, isDimmed) {
                       onmouseenter="showPriceHistory(this, ${f.id})"
                       onmouseleave="hidePriceHistory(this)">`;
 
-        // Compact single-line: logo | times | airports | price
+        // Compact single-line: logo | times | airports | price | oldest price
         if (f.airline_logo_url) {
             html += `<img src="${f.airline_logo_url}" alt="${f.airline_name}" class="flight-row-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`;
             html += `<span class="flight-row-abbrev" style="display:none">${abbrev}</span>`;
@@ -432,6 +495,15 @@ function renderDayFlights(flights, direction, isDimmed) {
         }
         html += `<span class="flight-row-airports">${f.origin_airport || '???'}→${f.destination_airport || '???'}</span>`;
         html += `<span class="flight-row-price">${Math.round(f.price)}€</span>`;
+
+        // Oldest recorded price (only if ≥2 history entries)
+        if (f.oldest_price != null && f.oldest_price !== f.price) {
+            const diff = f.price - f.oldest_price;
+            const arrow = diff < 0 ? '↓' : '↑';
+            const cls = diff < 0 ? 'price-down' : 'price-up';
+            html += `<span class="flight-row-old-price ${cls}">${arrow} ${Math.round(f.oldest_price)}€ (${f.oldest_price_date})</span>`;
+        }
+
         html += `<div class="price-history-dropdown hidden"></div>`;
         html += `</div>`;
     }

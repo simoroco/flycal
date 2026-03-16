@@ -31,12 +31,6 @@
         <h1 class="page-title">Settings</h1>
 
         <section class="settings-section glass-card">
-            <h2>Airlines</h2>
-            <div id="airlinesListSettings"></div>
-            <button class="btn-sm btn-accent" onclick="addAirline()" style="margin-top:10px">+ Add airline</button>
-        </section>
-
-        <section class="settings-section glass-card">
             <h2>Reference Price</h2>
             <div class="form-row">
                 <label>Ideal price (€)</label>
@@ -46,21 +40,20 @@
         </section>
 
         <section class="settings-section glass-card">
-            <h2>Time Slots</h2>
-            <div id="timeSlotsContainer"></div>
-            <button class="btn-sm btn-accent" onclick="addTimeSlot()" style="margin-top:10px">+ Add slot</button>
-            <button class="btn-sm btn-primary" onclick="saveTimeSlots()" style="margin-top:10px;margin-left:6px">Save</button>
-        </section>
-
-        <section class="settings-section glass-card">
             <h2>Stay Updated with Automatic Crawler</h2>
             <div class="form-row">
-                <label>Enable (07:00 & 20:00)</label>
+                <label>Enable</label>
                 <div class="toggle-switch" id="crawlerToggle" onclick="toggleCrawler()">
                     <div class="toggle-slider"></div>
                 </div>
                 <span id="crawlerStatus" class="status-text">Inactive</span>
             </div>
+            <div class="form-row" style="margin-top:8px">
+                <label>Interval (minutes)</label>
+                <input type="number" id="crawlerInterval" min="1" step="1" value="60" class="input-field input-sm" style="width:80px">
+                <button class="btn-sm btn-accent" onclick="saveCrawlerInterval()">Save</button>
+            </div>
+            <div id="crawlerTargetInfo" class="crawler-info" style="margin-top:8px"></div>
             <div class="crawler-info">
                 <p>Last run: <span id="lastRun">—</span></p>
                 <p>Next run: <span id="nextRun">—</span></p>
@@ -70,6 +63,19 @@
             <div class="logs-container" id="logsContainer">
                 <p class="text-muted">Loading...</p>
             </div>
+        </section>
+
+        <section class="settings-section glass-card">
+            <h2>Airlines</h2>
+            <div id="airlinesListSettings"></div>
+            <button class="btn-sm btn-accent" onclick="addAirline()" style="margin-top:10px">+ Add airline</button>
+        </section>
+
+        <section class="settings-section glass-card">
+            <h2>Time Slots</h2>
+            <div id="timeSlotsContainer"></div>
+            <button class="btn-sm btn-accent" onclick="addTimeSlot()" style="margin-top:10px">+ Add slot</button>
+            <button class="btn-sm btn-primary" onclick="saveTimeSlots()" style="margin-top:10px;margin-left:6px">Save</button>
         </section>
 
         <section class="settings-section glass-card">

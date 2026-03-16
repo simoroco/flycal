@@ -14,6 +14,9 @@ class SettingsUpdate(BaseModel):
     settings: Dict[str, Any]
 
 
+_NUMERIC_SETTINGS = {"ideal_price", "smtp_port", "crawler_interval"}
+
+
 def _get_all_settings(db: Session) -> dict:
     rows = db.query(Setting).all()
     result = {}
@@ -27,6 +30,11 @@ def _get_all_settings(db: Session) -> dict:
                 val = []
         elif val in ("true", "false"):
             val = val == "true"
+        elif key in _NUMERIC_SETTINGS:
+            try:
+                val = int(val) if val and "." not in val else float(val)
+            except (ValueError, TypeError):
+                pass
         result[key] = val
     return result
 

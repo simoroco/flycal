@@ -66,8 +66,8 @@ class SearchOut(BaseModel):
     flights: List[FlightOut]
 
 
-def _flight_to_dict(f: Flight) -> dict:
-    return {
+def _flight_to_dict(f: Flight, db=None) -> dict:
+    result = {
         "id": f.id,
         "search_id": f.search_id,
         "airline_id": f.airline_id,
@@ -84,10 +84,26 @@ def _flight_to_dict(f: Flight) -> dict:
         "price": f.price,
         "currency": f.currency,
         "scraped_at": f.scraped_at.isoformat() if f.scraped_at else "",
+        "oldest_price": None,
+        "oldest_price_date": None,
     }
+    # Add oldest price if ≥2 price history entries exist
+    if db:
+        ph_count = db.query(PriceHistory).filter(PriceHistory.flight_id == f.id).count()
+        if ph_count >= 2:
+            oldest = (
+                db.query(PriceHistory)
+                .filter(PriceHistory.flight_id == f.id)
+                .order_by(PriceHistory.recorded_at.asc())
+                .first()
+            )
+            if oldest:
+                result["oldest_price"] = oldest.price
+                result["oldest_price_date"] = oldest.recorded_at.strftime("%d/%m") if oldest.recorded_at else None
+    return result
 
 
-def _search_to_dict(s: Search) -> dict:
+def _search_to_dict(s: Search, db=None) -> dict:
     airlines_list = []
     try:
         airlines_list = json.loads(s.airlines)
@@ -103,7 +119,7 @@ def _search_to_dict(s: Search) -> dict:
         "airlines": airlines_list,
         "created_at": s.created_at.isoformat() if s.created_at else "",
         "is_last": s.is_last,
-        "flights": [_flight_to_dict(f) for f in s.flights],
+        "flights": [_flight_to_dict(f, db=db) for f in s.flights],
     }
 
 
@@ -117,7 +133,7 @@ def get_last_search(db: Session = Depends(get_db)):
     )
     if not search:
         return {"search": None, "flights": []}
-    return _search_to_dict(search)
+    return _search_to_dict(search, db=db)
 
 
 async def _run_scraping(search_id: int):
@@ -245,6 +261,20 @@ async def _run_scraping(search_id: int):
                     except Exception as am_err:
                         logger.warning(f"Amadeus fallback failed for {airline_name}: {am_err}")
 
+        # Carry forward oldest price history before deleting old flights
+        old_flights = db.query(Flight).filter(Flight.search_id == search_id).all()
+        oldest_prices = {}
+        for of in old_flights:
+            oldest_ph = (
+                db.query(PriceHistory)
+                .filter(PriceHistory.flight_id == of.id)
+                .order_by(PriceHistory.recorded_at.asc())
+                .first()
+            )
+            if oldest_ph:
+                key = (of.airline_id, str(of.flight_date), of.departure_time, of.direction)
+                oldest_prices[key] = (oldest_ph.price, oldest_ph.recorded_at)
+
         db.query(Flight).filter(Flight.search_id == search_id).delete()
         db.commit()
 
@@ -271,6 +301,17 @@ async def _run_scraping(search_id: int):
             )
             db.add(flight)
             db.flush()
+
+            # Re-create oldest price history entry if it existed
+            hist_key = (airline.id, str(result.flight_date), result.departure_time, result.direction)
+            old_entry = oldest_prices.get(hist_key)
+            if old_entry:
+                old_price, old_date = old_entry
+                db.add(PriceHistory(
+                    flight_id=flight.id,
+                    price=old_price,
+                    recorded_at=old_date,
+                ))
 
             ph = PriceHistory(
                 flight_id=flight.id,

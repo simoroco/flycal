@@ -356,3 +356,44 @@
     width: 18px;
     height: 18px;
 }
+
+/* ── Week Separator ── */
+.week-separator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 0;
+    margin: 0;
+    position: relative;
+}
+
+.week-separator::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: 50%;
+    height: 1px;
+    background: var(--glass-border);
+}
+
+.week-separator span {
+    position: relative;
+    font-size: 0.58rem;
+    color: var(--accent);
+    background: var(--bg);
+    padding: 1px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--glass-border);
+    white-space: nowrap;
+    z-index: 1;
+}
+
+/* ── Oldest Price indicator ── */
+.flight-row-old-price {
+    font-size: 0.55rem;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.flight-row-old-price.price-down { color: var(--green); }
+.flight-row-old-price.price-up { color: var(--red); }

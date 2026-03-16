@@ -171,6 +171,9 @@ def init_db():
             "smtp_to": "",
             "smtp_send_enabled": "false",
             "crawler_enabled": "false",
+            "crawler_interval": "60",
+            "crawler_search_id": "",
+            "crawler_started_at": "",
             "ideal_price": "100",
             "time_slots": json.dumps([
                 {"label": "Comfortable", "start": "10:00", "end": "18:00", "color": "green"},

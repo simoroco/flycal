@@ -23,6 +23,26 @@ def crawler_status(db: Session = Depends(get_db)):
     last_log = db.query(CrawlerLog).order_by(CrawlerLog.started_at.desc()).first()
     from scheduler import get_next_run_time
     next_run = get_next_run_time()
+
+    # Crawler target search info
+    crawler_search_id = _get_setting(db, "crawler_search_id", "")
+    crawler_started_at = _get_setting(db, "crawler_started_at", "")
+    crawler_interval = _get_setting(db, "crawler_interval", "60")
+    target_search = None
+    if crawler_search_id:
+        try:
+            s = db.query(Search).filter(Search.id == int(crawler_search_id)).first()
+            if s:
+                target_search = {
+                    "id": s.id,
+                    "origin_city": s.origin_city,
+                    "destination_city": s.destination_city,
+                    "date_from": s.date_from.isoformat() if s.date_from else "",
+                    "date_to": s.date_to.isoformat() if s.date_to else "",
+                }
+        except (ValueError, TypeError):
+            pass
+
     return {
         "enabled": enabled,
         "last_run": {
@@ -32,18 +52,33 @@ def crawler_status(db: Session = Depends(get_db)):
             "error_msg": last_log.error_msg if last_log else None,
         } if last_log else None,
         "next_run": next_run,
+        "crawler_search_id": crawler_search_id,
+        "crawler_started_at": crawler_started_at,
+        "crawler_interval": int(crawler_interval) if crawler_interval else 60,
+        "target_search": target_search,
     }
+
+
+def _set_setting(db: Session, key: str, value: str):
+    existing = db.query(Setting).filter(Setting.key == key).first()
+    if existing:
+        existing.value = value
+    else:
+        db.add(Setting(key=key, value=value))
 
 
 @router.post("/toggle")
 def toggle_crawler(db: Session = Depends(get_db)):
     current = _get_setting(db, "crawler_enabled", "false")
     new_val = "false" if current == "true" else "true"
-    existing = db.query(Setting).filter(Setting.key == "crawler_enabled").first()
-    if existing:
-        existing.value = new_val
-    else:
-        db.add(Setting(key="crawler_enabled", value=new_val))
+    _set_setting(db, "crawler_enabled", new_val)
+
+    # When enabling, record which search and when
+    if new_val == "true":
+        last_search = db.query(Search).filter(Search.is_last == True).first()
+        if last_search:
+            _set_setting(db, "crawler_search_id", str(last_search.id))
+            _set_setting(db, "crawler_started_at", datetime.utcnow().isoformat())
     db.commit()
 
     from scheduler import update_scheduler_state
