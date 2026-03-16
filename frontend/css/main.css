@@ -293,6 +293,20 @@ body {
     font-weight: 500;
 }
 
+.search-estimate {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: -8px;
+}
+
+.search-timer {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+    font-family: 'Menlo', 'Monaco', monospace;
+    letter-spacing: 1px;
+}
+
 .btn-search {
     padding: 7px 18px;
     border-radius: 8px;
@@ -473,6 +487,7 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     padding: 0 8px;
+    text-align: center;
 }
 
 .flight-grid-header .col-title-center {

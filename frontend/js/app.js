@@ -9,6 +9,8 @@ let appSettings = null;
 let cityList = [];
 let airlinesList = [];
 let isSearching = false;
+let searchTimerInterval = null;
+let searchStartTime = null;
 
 // ── Init ──
 async function init() {
@@ -69,6 +71,60 @@ function formatDateISO(d) {
     return d.getFullYear() + '-' +
         String(d.getMonth() + 1).padStart(2, '0') + '-' +
         String(d.getDate()).padStart(2, '0');
+}
+
+// ── Search timer & estimate ──
+function startSearchTimer() {
+    searchStartTime = Date.now();
+    const timerEl = document.getElementById('searchTimer');
+    const estimateEl = document.getElementById('searchEstimate');
+    if (timerEl) timerEl.textContent = '⏱ 00:00';
+
+    // Compute dynamic estimate based on date range × airlines
+    if (estimateEl) {
+        const dateFrom = document.getElementById('dateFrom').value;
+        const dateTo = document.getElementById('dateTo').value;
+        const activeAirlines = document.querySelectorAll('.airline-toggle.active').length || 1;
+        let days = 30;
+        if (dateFrom && dateTo) {
+            const d1 = new Date(dateFrom + 'T00:00:00');
+            const d2 = new Date(dateTo + 'T00:00:00');
+            days = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)));
+        }
+        // ~3 seconds per day per airline (empirical estimate)
+        const estimatedSec = Math.max(30, days * activeAirlines * 3);
+        const estMin = Math.floor(estimatedSec / 60);
+        const estSec = estimatedSec % 60;
+        const estStr = estMin > 0
+            ? `~${estMin}min${estSec > 0 ? ` ${estSec}s` : ''}`
+            : `~${estSec}s`;
+        estimateEl.textContent = `Estimated time: ${estStr} (${days} days × ${activeAirlines} airline${activeAirlines > 1 ? 's' : ''})`;
+    }
+
+    if (searchTimerInterval) clearInterval(searchTimerInterval);
+    searchTimerInterval = setInterval(() => {
+        if (!searchStartTime || !timerEl) return;
+        const elapsed = Math.floor((Date.now() - searchStartTime) / 1000);
+        const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        const ss = String(elapsed % 60).padStart(2, '0');
+        timerEl.textContent = `⏱ ${mm}:${ss}`;
+    }, 1000);
+}
+
+function stopSearchTimer() {
+    if (searchTimerInterval) {
+        clearInterval(searchTimerInterval);
+        searchTimerInterval = null;
+    }
+    searchStartTime = null;
+}
+
+// ── Search completion notification ──
+function notifySearchComplete(flightCount) {
+    const origin = document.getElementById('originCity').value.trim().toUpperCase();
+    const destination = document.getElementById('destinationCity').value.trim().toUpperCase();
+    const msg = `Search complete: ${origin} → ${destination} — ${flightCount} flight${flightCount !== 1 ? 's' : ''} found`;
+    Toast.success(msg, 6000);
 }
 
 async function loadSettingsForApp() {
@@ -276,6 +332,7 @@ function showSearchingState() {
         centralLoader.classList.remove('hidden');
         if (gridHeader) gridHeader.classList.add('hidden');
     }
+    startSearchTimer();
 }
 
 function hideSearchingState() {
@@ -290,6 +347,7 @@ function hideSearchingState() {
     btn.disabled = false;
     if (centralLoader) centralLoader.classList.add('hidden');
     if (gridHeader) gridHeader.classList.remove('hidden');
+    stopSearchTimer();
 }
 
 // ── Search ──
@@ -390,6 +448,7 @@ function startPolling(searchId) {
                     clearInterval(pollingTimer);
                     pollingTimer = null;
                     hideSearchingState();
+                    notifySearchComplete(allFlights.length);
                 }
             } else if (done) {
                 allFlights = data ? (data.flights || []) : [];
@@ -398,6 +457,7 @@ function startPolling(searchId) {
                 clearInterval(pollingTimer);
                 pollingTimer = null;
                 hideSearchingState();
+                notifySearchComplete(allFlights.length);
             }
         } catch (e) {
             console.error('Polling error:', e);

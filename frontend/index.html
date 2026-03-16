@@ -10,10 +10,10 @@
 <body>
     <header class="header">
         <div class="header-left">
-            <div class="logo">
+            <a href="/" class="logo" style="text-decoration:none">
                 <span class="logo-icon">✈</span>
                 <span class="logo-text">FlyCal</span>
-            </div>
+            </a>
             <nav class="nav">
                 <a href="/" class="nav-link active">Scan</a>
                 <a href="/history.html" class="nav-link">History</a>
@@ -88,6 +88,8 @@
             <div class="central-loader-inner">
                 <div class="loader" style="width:36px;height:36px;border-width:3px"></div>
                 <p>Scanning flights... Flight search 🛫 : It's going to take some time. Grab a ☕ and wait...</p>
+                <p class="search-estimate" id="searchEstimate"></p>
+                <p class="search-timer" id="searchTimer">⏱ 00:00</p>
             </div>
         </div>
 

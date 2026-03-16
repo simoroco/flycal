@@ -9,10 +9,10 @@
 <body>
     <header class="header">
         <div class="header-left">
-            <div class="logo">
+            <a href="/" class="logo" style="text-decoration:none">
                 <span class="logo-icon">✈</span>
                 <span class="logo-text">FlyCal</span>
-            </div>
+            </a>
             <nav class="nav">
                 <a href="/" class="nav-link">Scan</a>
                 <a href="/history.html" class="nav-link">History</a>
@@ -52,19 +52,17 @@
 
             <!-- Crawler Schedule Times -->
             <div style="margin-top:12px;padding:10px;background:rgba(255,255,255,0.02);border-radius:var(--radius-sm);border:1px solid var(--glass-border)">
-                <p style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:8px">Schedule</p>
-                <div class="form-row" style="margin-bottom:6px">
-                    <label>Run #1</label>
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                    <span style="font-size:0.78rem;font-weight:600;color:var(--text-muted)">Schedule</span>
+                    <span style="font-size:0.75rem;color:var(--text-muted)">Run #1</span>
                     <input type="time" id="crawlerTime1" value="07:00" class="compact-input" style="width:100px" onclick="if(this.showPicker)this.showPicker()">
-                </div>
-                <div class="form-row" style="margin-bottom:6px">
-                    <label>Run #2</label>
-                    <div class="toggle-switch" id="crawlerTime2Toggle" onclick="toggleSecondCrawlTime()">
+                    <span style="font-size:0.75rem;color:var(--text-muted)">Run #2</span>
+                    <div class="toggle-switch" id="crawlerTime2Toggle" onclick="toggleSecondCrawlTime()" style="flex-shrink:0">
                         <div class="toggle-slider"></div>
                     </div>
                     <input type="time" id="crawlerTime2" value="22:00" class="compact-input" style="width:100px" disabled onclick="if(this.showPicker)this.showPicker()">
+                    <button class="btn-sm btn-accent" onclick="saveCrawlerSchedule()">Save schedule</button>
                 </div>
-                <button class="btn-sm btn-accent" onclick="saveCrawlerSchedule()" style="margin-top:4px">Save schedule</button>
             </div>
 
             <div id="crawlerTargetInfo" class="crawler-info" style="margin-top:8px"></div>

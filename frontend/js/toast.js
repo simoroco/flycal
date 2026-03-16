@@ -2,6 +2,7 @@
 
 const Toast = {
     _container: null,
+    _audioCtx: null,
 
     _ensureContainer() {
         if (this._container) return this._container;
@@ -10,6 +11,40 @@ const Toast = {
         this._container.className = 'toast-container';
         document.body.appendChild(this._container);
         return this._container;
+    },
+
+    /** Play a short synthesized beep via Web Audio API */
+    _playSound(type = 'info') {
+        try {
+            if (!this._audioCtx) {
+                this._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            const ctx = this._audioCtx;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            // Different tones per type
+            const tones = {
+                success: { freq: 880, dur: 0.15, freq2: 1100 },
+                error:   { freq: 300, dur: 0.25, freq2: 200 },
+                warning: { freq: 600, dur: 0.2,  freq2: 500 },
+                info:    { freq: 700, dur: 0.12, freq2: 900 },
+            };
+            const t = tones[type] || tones.info;
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(t.freq, ctx.currentTime);
+            osc.frequency.linearRampToValueAtTime(t.freq2, ctx.currentTime + t.dur);
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t.dur + 0.05);
+
+            osc.start(ctx.currentTime);
+            osc.stop(ctx.currentTime + t.dur + 0.1);
+        } catch (e) {
+            // Audio not available — silently ignore
+        }
     },
 
     /**
@@ -33,6 +68,9 @@ const Toast = {
         container.appendChild(toast);
         // Trigger animation
         requestAnimationFrame(() => toast.classList.add('toast-visible'));
+
+        // Play sound
+        this._playSound(type);
 
         if (duration > 0) {
             setTimeout(() => this.dismiss(toast), duration);
@@ -84,6 +122,7 @@ const Toast = {
 
         container.appendChild(toast);
         requestAnimationFrame(() => toast.classList.add('toast-visible'));
+        this._playSound('warning');
         return toast;
     },
 };
