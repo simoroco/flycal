@@ -61,20 +61,16 @@
         </div>
     </section>
 
-    <!-- Recap Banner (sticky): days | OUT | TOTAL | RET | fees -->
+    <!-- Recap Banner (sticky): OUT | TOTAL+DAYS | RET -->
     <section class="recap-banner hidden" id="recapBanner">
         <div class="recap-inner">
-            <div class="recap-section recap-days">
-                <span class="recap-tag">DAYS</span>
-                <span class="recap-detail" id="recapDays">—</span>
-            </div>
             <div class="recap-section recap-outbound">
                 <span class="recap-tag">OUT</span>
                 <span class="recap-detail" id="recapOutDetail">—</span>
             </div>
             <div class="recap-total-box">
-                <span class="recap-total-label">TOTAL</span>
                 <span class="recap-total-price" id="recapTotal">0 €</span>
+                <span class="recap-total-days" id="recapDays"></span>
             </div>
             <div class="recap-section recap-return">
                 <span class="recap-tag">RET</span>
@@ -96,7 +92,7 @@
         </div>
 
         <!-- Column headers -->
-        <div class="flight-grid-header">
+        <div class="flight-grid-header" id="flightGridHeader">
             <div class="col-title">Outbound</div>
             <div class="col-title col-title-center">Date</div>
             <div class="col-title">Return</div>

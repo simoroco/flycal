@@ -1,6 +1,4 @@
-localhost:4444 {
-    tls internal
-
+:4444 {
     handle /api/* {
         reverse_proxy localhost:4445
     }

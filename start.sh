@@ -10,16 +10,21 @@ mkdir -p ./data
 # Build and start
 docker compose up --build -d
 
+# Detect local IP
+LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || ipconfig getifaddr en0 2>/dev/null || echo "localhost")
+
 echo "Waiting for the application to be ready..."
 for i in $(seq 1 30); do
-    if curl -ks https://localhost:4444/api/health 2>/dev/null | grep -q '"ok"'; then
+    if curl -sf http://localhost:4444/api/health 2>/dev/null | grep -q '"ok"'; then
         echo ""
         echo "================================================"
-        echo "  FlyCal is running at https://localhost:4444"
-        echo "  API docs: https://localhost:4444/api/docs"
+        echo "  FlyCal is running!"
+        echo ""
+        echo "  Local:   http://localhost:4444"
+        echo "  Network: http://${LOCAL_IP}:4444"
+        echo "  API:     http://localhost:4444/api/docs"
         echo "================================================"
         echo ""
-        echo "Accept the self-signed certificate in your browser."
         echo "Logs: docker compose logs -f"
         exit 0
     fi

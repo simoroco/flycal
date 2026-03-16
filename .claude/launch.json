@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "flycal-frontend",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["http-server", "frontend", "-p", "8080", "--cors", "-c-1", "--proxy", "http://localhost:4445"],
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/Users/mb/Git/flycal/.claude/proxy.js"],
       "port": 8080
     }
   ]

@@ -428,7 +428,7 @@ body {
 .recap-total-box {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     padding: 4px 14px;
     background: rgba(108, 99, 255, 0.12);
     border-radius: 8px;
@@ -436,17 +436,17 @@ body {
     flex-shrink: 0;
 }
 
-.recap-total-label {
-    font-size: 0.6rem;
-    font-weight: 700;
-    color: var(--text-muted);
-    text-transform: uppercase;
-}
-
 .recap-total-price {
     font-size: 1.1rem;
     font-weight: 700;
     color: var(--accent);
+}
+
+.recap-total-days {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
 }
 
 /* ── Main Content ── */
@@ -510,15 +510,21 @@ body {
     letter-spacing: 0.5px;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
 }
 
+.week-header-label::before,
 .week-header-label::after {
     content: '';
     flex: 1;
     height: 1px;
-    background: linear-gradient(90deg, var(--accent), transparent);
+    background: linear-gradient(90deg, transparent, var(--accent));
     opacity: 0.3;
+}
+
+.week-header-label::after {
+    background: linear-gradient(90deg, var(--accent), transparent);
 }
 
 /* Day row: outbound | date | return aligned on same line */
@@ -541,6 +547,7 @@ body {
 
 .flight-day-col.dimmed {
     opacity: 0.35;
+    pointer-events: none;
 }
 
 .flight-day-date {
@@ -1041,16 +1048,140 @@ body {
     text-transform: uppercase;
 }
 
-/* ── Responsive ── */
-@media (max-width: 768px) {
+/* ── Responsive: Tablet (<=1024px) ── */
+@media (max-width: 1024px) {
     .flight-grid-header,
-    .flight-day-row { grid-template-columns: 1fr; }
-    .flight-grid-header .col-title-center,
-    .flight-day-date { display: none; }
+    .flight-day-row { grid-template-columns: 1fr 56px 1fr; }
+    .week-header-row { grid-template-columns: 1fr 56px 1fr; }
+    .flight-day-date .day-num { font-size: 1rem; }
+    .recap-detail { max-width: 180px; font-size: 0.72rem; }
+    .search-row-compact { flex-wrap: wrap; gap: 5px; }
+    .search-divider { display: none; }
+    .main-content { padding: 8px 10px; }
+}
+
+/* ── Responsive: Mobile (<=768px) ── */
+@media (max-width: 768px) {
+    /* Header */
+    .header { padding: 6px 12px; }
+    .header-left { gap: 12px; }
+    .logo { font-size: 0.95rem; }
+    .nav-link { font-size: 0.75rem; padding: 5px 8px; }
+    .crawler-badge { font-size: 0.68rem; padding: 4px 8px; }
+
+    /* Search bar */
+    .search-bar { padding: 6px 10px; }
+    .search-row-compact {
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+    .search-label { font-size: 0.55rem; }
+    .search-divider { display: none; }
+    .city-input { width: 90px; font-size: 0.75rem; padding: 6px 8px; }
+    .date-input { width: 110px; font-size: 0.75rem; padding: 6px 8px; }
+    .compact-arrow { font-size: 0.7rem; }
+    .airline-toggle { width: 24px; height: 24px; }
+    .airline-toggle img { width: 18px; height: 18px; }
+    .btn-search { padding: 6px 14px; font-size: 0.75rem; }
+
+    /* Recap banner */
+    .recap-banner { padding: 5px 10px; }
+    .recap-inner { gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .recap-section { gap: 4px; }
+    .recap-tag { font-size: 0.55rem; padding: 1px 4px; }
+    .recap-detail { font-size: 0.68rem; max-width: 140px; }
+    .recap-total-box { padding: 3px 10px; gap: 6px; }
+    .recap-total-price { font-size: 0.95rem; }
+    .recap-total-days { font-size: 0.68rem; }
+    .recap-breakdown { font-size: 0.65rem; }
+
+    /* Flight grid — keep 3 columns but narrower date */
+    .flight-grid-header,
+    .flight-day-row { grid-template-columns: 1fr 44px 1fr; }
     .week-header-row { grid-template-columns: 1fr; }
-    .search-row-compact { flex-wrap: wrap; }
-    .header-left { flex-direction: column; gap: 6px; }
-    .recap-inner { flex-wrap: wrap; }
-    .form-row { flex-direction: column; align-items: flex-start; }
-    .airline-row { flex-direction: column; align-items: flex-start; }
+    .flight-grid-header .col-title { font-size: 0.65rem; padding: 0 4px; }
+    .flight-day-date { padding: 2px 1px; }
+    .flight-day-date .day-name { font-size: 0.45rem; }
+    .flight-day-date .day-num { font-size: 0.9rem; }
+    .flight-day-date .day-month { font-size: 0.4rem; }
+    .flight-day-col { padding: 2px 2px; }
+    .main-content { padding: 6px 6px; }
+
+    /* Flight rows compact */
+    .flight-row { font-size: 0.68rem !important; height: auto !important; min-height: 26px; padding: 3px 4px !important; }
+    .flight-row-logo { width: 18px !important; height: 18px !important; }
+    .flight-row-abbrev { width: 18px !important; font-size: 0.5rem !important; }
+    .flight-row-times { font-size: 0.68rem !important; }
+    .flight-row-duration { font-size: 0.55rem !important; }
+    .flight-row-airports { font-size: 0.55rem !important; }
+    .flight-row-price { font-size: 0.72rem !important; }
+    .flight-row-old-price { font-size: 0.5rem !important; }
+
+    /* Page content (settings, history) */
+    .page-content { padding: 12px 10px; }
+    .page-title { font-size: 1.1rem; }
+    .glass-card { padding: 14px 12px; }
+
+    /* Settings */
+    .form-row { flex-direction: column; align-items: flex-start; gap: 5px; }
+    .form-row label { min-width: auto; font-size: 0.78rem; }
+    .input-field { max-width: 100%; }
+    .airline-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .airline-row .input-field { max-width: 100%; }
+    .airline-logo-actions { flex-wrap: wrap; }
+    .timeslot-row { flex-wrap: wrap; gap: 5px; }
+
+    /* Table (history) */
+    .data-table th { font-size: 0.6rem; padding: 6px 6px; }
+    .data-table td { font-size: 0.72rem; padding: 6px 6px; }
+
+    /* Search expand in history */
+    .search-expand-flights { flex-direction: column; }
+    .search-expand-col h4 { font-size: 0.7rem; }
+}
+
+/* ── Responsive: Small Mobile (<=480px) ── */
+@media (max-width: 480px) {
+    .header { padding: 5px 8px; }
+    .header-left { gap: 8px; }
+    .logo { font-size: 0.85rem; gap: 4px; }
+    .logo-icon { font-size: 1rem; }
+    .nav-link { font-size: 0.68rem; padding: 4px 6px; }
+    .crawler-badge { font-size: 0.6rem; padding: 3px 6px; }
+    .crawler-badge span#crawlerLabel { display: none; }
+
+    /* Search bar stacked layout */
+    .search-bar { padding: 5px 6px; top: 36px; }
+    .search-row-compact { gap: 4px; }
+    .city-input { width: 75px; font-size: 0.7rem; padding: 5px 6px; }
+    .date-input { width: 100px; font-size: 0.7rem; padding: 5px 6px; }
+    .search-label { font-size: 0.5rem; }
+    .airline-toggle { width: 22px; height: 22px; border-width: 1.5px; }
+    .airline-toggle img { width: 16px; height: 16px; }
+    .btn-search { padding: 5px 10px; font-size: 0.7rem; }
+
+    /* Flight grid — narrower date column */
+    .flight-grid-header,
+    .flight-day-row { grid-template-columns: 1fr 36px 1fr; }
+    .flight-grid-header .col-title-center { font-size: 0; }
+    .flight-day-date .day-name { display: none; }
+    .flight-day-date .day-num { font-size: 0.8rem; }
+    .flight-day-date .day-month { font-size: 0.38rem; }
+
+    /* Recap */
+    .recap-inner { gap: 6px; }
+    .recap-section.recap-outbound,
+    .recap-section.recap-return { display: none; }
+    .recap-total-price { font-size: 0.85rem; }
+    .recap-fees { display: none; }
+
+    /* Table: hide less important columns */
+    .data-table th:nth-child(3),
+    .data-table td:nth-child(3),
+    .data-table th:nth-child(6),
+    .data-table td:nth-child(6) { display: none; }
+
+    /* Flight row even more compact */
+    .flight-row-duration { display: none !important; }
+    .flight-row-airports { display: none !important; }
 }

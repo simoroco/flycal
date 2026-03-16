@@ -1,7 +1,10 @@
-# ✈ FlyCal
 
 <p align="center">
-  <strong>Flight Calendar Comparator</strong>
+  <img src="./frontend/logo.png" alt="MyFlix Logo" width="110"/>
+</p>
+
+<p align="center">
+  <strong>Flights Planner</strong>
 </p>
 
 <p align="center">
@@ -205,4 +208,4 @@ This project is distributed under the **MIT License**.
 
 ---
 
-**FlyCal** — Flight Calendar Comparator
+**FlyCal** — Flight Planner

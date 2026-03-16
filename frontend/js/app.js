@@ -248,6 +248,7 @@ function showSearchingState() {
     const searchBar = document.getElementById('searchBar');
     const progressBand = document.getElementById('searchProgressBand');
     const centralLoader = document.getElementById('centralLoader');
+    const gridHeader = document.getElementById('flightGridHeader');
     const btn = document.getElementById('btnSearch');
     searchBar.classList.add('greyed-out');
     progressBand.classList.remove('hidden');
@@ -255,6 +256,7 @@ function showSearchingState() {
     // Show central loader only if no flights are displayed yet
     if (allFlights.length === 0 && centralLoader) {
         centralLoader.classList.remove('hidden');
+        if (gridHeader) gridHeader.classList.add('hidden');
     }
 }
 
@@ -263,11 +265,13 @@ function hideSearchingState() {
     const searchBar = document.getElementById('searchBar');
     const progressBand = document.getElementById('searchProgressBand');
     const centralLoader = document.getElementById('centralLoader');
+    const gridHeader = document.getElementById('flightGridHeader');
     const btn = document.getElementById('btnSearch');
     searchBar.classList.remove('greyed-out');
     progressBand.classList.add('hidden');
     btn.disabled = false;
     if (centralLoader) centralLoader.classList.add('hidden');
+    if (gridHeader) gridHeader.classList.remove('hidden');
 }
 
 // ── Search ──
@@ -358,9 +362,11 @@ function startPolling(searchId) {
                 allFlights = data.flights;
                 renderFlights();
                 autoSelectBestFlights();
-                // Hide central loader once we have results
+                // Hide central loader and show grid header once we have results
                 const centralLoader = document.getElementById('centralLoader');
+                const gridHeader = document.getElementById('flightGridHeader');
                 if (centralLoader) centralLoader.classList.add('hidden');
+                if (gridHeader) gridHeader.classList.remove('hidden');
                 if (done) {
                     console.log(`[FlyCal Crawler] Search complete: ${allFlights.length} total flights`);
                     clearInterval(pollingTimer);
@@ -594,6 +600,10 @@ function handleFlightClick(flightId, direction) {
     const flight = allFlights.find(f => f.id === flightId);
     if (!flight) return;
 
+    // Prevent selection of dimmed flights
+    if (direction === 'outbound' && selectedReturn && flight.flight_date > selectedReturn.flight_date) return;
+    if (direction === 'return' && selectedOutbound && flight.flight_date < selectedOutbound.flight_date) return;
+
     if (direction === 'outbound') {
         selectedOutbound = (selectedOutbound && selectedOutbound.id === flightId) ? null : flight;
     } else {
@@ -649,23 +659,24 @@ function updateRecap() {
         retDetail.textContent = '—';
     }
 
+    const grandTotal = totalBase + totalFixed + totalPercent;
+    totalEl.textContent = `${Math.round(grandTotal)} €`;
+
     if (selectedOutbound && selectedReturn) {
         const outDate = new Date(selectedOutbound.flight_date + 'T00:00:00');
         const retDate = new Date(selectedReturn.flight_date + 'T00:00:00');
         const diffMs = retDate - outDate;
         const diffDays = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)) - 1);
-        daysEl.textContent = `${diffDays}d`;
+        daysEl.textContent = `| ${diffDays} Day${diffDays !== 1 ? 's' : ''}`;
     } else {
-        daysEl.textContent = '—';
+        daysEl.textContent = '';
     }
 
-    const grandTotal = totalBase + totalFixed + totalPercent;
     if (totalFixed > 0 || totalPercent > 0) {
         breakdownEl.textContent = `${Math.round(totalBase)}€ + ${Math.round(totalFixed)}€ fees + ${Math.round(totalPercent)}€ %`;
     } else {
         breakdownEl.textContent = '';
     }
-    totalEl.textContent = `${Math.round(grandTotal)} €`;
 }
 
 document.addEventListener('DOMContentLoaded', init);
