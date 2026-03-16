@@ -1,5 +1,170 @@
-/* === FlyCal — Calendar Vertical === */
+/* === FlyCal — Calendar & Flight Display === */
 
+/* ── Vertical Calendar Strip (center column) ── */
+.calendar-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.cal-day-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 4px;
+    min-height: 52px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background var(--transition);
+}
+
+.cal-day-cell:hover {
+    background: rgba(108, 99, 255, 0.08);
+}
+
+.cal-day-name {
+    font-size: 0.55rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cal-day-num {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.1;
+}
+
+.cal-month {
+    font-size: 0.5rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+/* ── Day Row (outbound/return columns) ── */
+.day-row {
+    min-height: 52px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 2px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: opacity var(--transition);
+}
+
+.day-row.dimmed {
+    opacity: 0.35;
+}
+
+/* ── Compact Flight Row (single line) ── */
+.flight-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all var(--transition);
+    border-left: 3px solid transparent;
+    position: relative;
+    font-size: 0.78rem;
+}
+
+.flight-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateX(2px);
+}
+
+.flight-row.selected {
+    border-color: var(--accent) !important;
+    background: rgba(108, 99, 255, 0.12);
+    box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+.flight-row.dim {
+    opacity: 0.4;
+}
+
+/* Color variants */
+.flight-row.color-green { border-left-color: var(--green); background: rgba(0, 200, 100, 0.06); }
+.flight-row.color-orange { border-left-color: var(--orange); background: rgba(255, 140, 0, 0.06); }
+.flight-row.color-red { border-left-color: var(--red); background: rgba(220, 50, 50, 0.06); }
+
+.flight-row.color-green:hover { background: var(--green-bg); }
+.flight-row.color-orange:hover { background: var(--orange-bg); }
+.flight-row.color-red:hover { background: var(--red-bg); }
+
+.flight-row-logo {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.flight-row-abbrev {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--accent);
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.flight-row-times {
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.flight-row-duration {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.flight-row-airports {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.flight-row-price {
+    font-weight: 700;
+    color: var(--text);
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* ── Price History Dropdown ── */
+.price-history-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: rgba(15, 15, 25, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.ph-entry {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+    font-size: 0.68rem;
+}
+
+.ph-date { color: var(--text-muted); }
+.ph-price { color: var(--text); font-weight: 600; }
+
+/* ── Traditional Calendar (used in searches modal) ── */
 .calendar-container {
     display: flex;
     flex-direction: column;
@@ -14,12 +179,12 @@
     position: sticky;
     top: 0;
     z-index: 10;
-    padding: 10px 16px;
+    padding: 8px 12px;
     background: rgba(10, 10, 15, 0.9);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--glass-border);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: var(--text);
     display: flex;
@@ -27,97 +192,82 @@
     gap: 8px;
 }
 
-.day-header .day-date {
-    color: var(--accent);
-}
+.day-header .day-date { color: var(--accent); }
 
 .day-header .day-count {
     color: var(--text-muted);
     font-weight: 400;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
 }
 
 .day-flights {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 8px;
+    gap: 6px;
+    padding: 6px;
 }
 
-/* Flight Card */
+/* Flight Card (traditional view) */
 .flight-card {
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius);
-    padding: 14px 16px;
+    padding: 10px 12px;
     cursor: pointer;
     transition: all var(--transition);
-    border-left: 4px solid transparent;
+    border-left: 3px solid transparent;
     display: grid;
     grid-template-columns: auto 1fr auto;
-    gap: 12px;
+    gap: 10px;
     align-items: center;
 }
 
 .flight-card:hover {
     border-color: rgba(255, 255, 255, 0.15);
     transform: translateY(-1px);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .flight-card.selected {
     border-color: var(--accent) !important;
-    box-shadow: 0 0 0 2px var(--accent-glow), 0 4px 20px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 0 2px var(--accent-glow), 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
-/* Color variants */
-.flight-card.color-green {
-    background: var(--green-bg);
-    border-left-color: var(--green);
-}
+.flight-card.color-green { background: var(--green-bg); border-left-color: var(--green); }
+.flight-card.color-orange { background: var(--orange-bg); border-left-color: var(--orange); }
+.flight-card.color-red { background: var(--red-bg); border-left-color: var(--red); }
 
-.flight-card.color-orange {
-    background: var(--orange-bg);
-    border-left-color: var(--orange);
-}
-
-.flight-card.color-red {
-    background: var(--red-bg);
-    border-left-color: var(--red);
-}
-
-/* Card sections */
 .flight-airline {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    min-width: 60px;
+    gap: 3px;
+    min-width: 50px;
 }
 
 .airline-logo {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.6rem;
+    font-size: 0.55rem;
     font-weight: 700;
     color: var(--accent);
     text-transform: uppercase;
 }
 
 .airline-name {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     color: var(--text-muted);
     text-align: center;
     line-height: 1.2;
-    max-width: 65px;
+    max-width: 55px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -126,36 +276,34 @@
 .flight-details {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
 }
 
 .flight-times {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 1rem;
+    gap: 6px;
+    font-size: 0.9rem;
     font-weight: 600;
 }
 
-.flight-time {
-    color: var(--text);
-}
+.flight-time { color: var(--text); }
 
 .flight-arrow {
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: 0.75rem;
 }
 
 .flight-duration {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--text-muted);
 }
 
 .flight-airports {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 0.8rem;
+    gap: 6px;
+    font-size: 0.75rem;
     color: var(--text-muted);
 }
 
@@ -167,41 +315,39 @@
 
 .flight-price {
     text-align: right;
-    min-width: 70px;
+    min-width: 60px;
 }
 
 .price-amount {
-    font-size: 1.3rem;
+    font-size: 1.1rem;
     font-weight: 700;
     color: var(--text);
 }
 
 .price-currency {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
     margin-left: 2px;
 }
 
-/* No flights */
 .no-flights {
     text-align: center;
-    padding: 20px;
+    padding: 16px;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: 0.82rem;
 }
 
-/* Polling indicator */
 .polling-indicator {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    padding: 20px;
+    gap: 8px;
+    padding: 16px;
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 .polling-indicator .loader {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
 }

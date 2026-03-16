@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlyCal — Paramètres</title>
+    <title>FlyCal — Settings</title>
     <link rel="stylesheet" href="/css/main.css">
 </head>
 <body>
@@ -14,13 +14,13 @@
                 <span class="logo-text">FlyCal</span>
             </div>
             <nav class="nav">
-                <a href="/" class="nav-link">Accueil</a>
-                <a href="/searches.html" class="nav-link">Recherches</a>
-                <a href="/settings.html" class="nav-link active">Paramètres</a>
+                <a href="/" class="nav-link">Home</a>
+                <a href="/searches.html" class="nav-link">Searches</a>
+                <a href="/settings.html" class="nav-link active">Settings</a>
             </nav>
         </div>
         <div class="header-right">
-            <div class="crawler-badge" id="crawlerBadge">
+            <div class="crawler-badge" id="crawlerBadge" onclick="toggleCrawler()">
                 <span class="crawler-dot" id="crawlerDot"></span>
                 <span id="crawlerLabel">Crawler</span>
             </div>
@@ -28,47 +28,47 @@
     </header>
 
     <main class="page-content">
-        <h1 class="page-title">Paramètres</h1>
+        <h1 class="page-title">Settings</h1>
 
         <section class="settings-section glass-card">
-            <h2>Compagnies aériennes</h2>
+            <h2>Airlines</h2>
             <div id="airlinesListSettings"></div>
-            <button class="btn-sm btn-accent" onclick="addAirline()" style="margin-top:12px">+ Ajouter une compagnie</button>
+            <button class="btn-sm btn-accent" onclick="addAirline()" style="margin-top:10px">+ Add airline</button>
         </section>
 
         <section class="settings-section glass-card">
-            <h2>Prix de référence</h2>
+            <h2>Reference Price</h2>
             <div class="form-row">
-                <label>Prix idéal (€)</label>
+                <label>Ideal price (€)</label>
                 <input type="number" id="idealPrice" min="0" step="1" value="100" class="input-field input-sm">
-                <button class="btn-sm btn-accent" onclick="saveIdealPrice()">Enregistrer</button>
+                <button class="btn-sm btn-accent" onclick="saveIdealPrice()">Save</button>
             </div>
         </section>
 
         <section class="settings-section glass-card">
-            <h2>Plages horaires</h2>
+            <h2>Time Slots</h2>
             <div id="timeSlotsContainer"></div>
-            <button class="btn-sm btn-accent" onclick="addTimeSlot()" style="margin-top:12px">+ Ajouter une plage</button>
-            <button class="btn-sm btn-primary" onclick="saveTimeSlots()" style="margin-top:12px;margin-left:8px">Enregistrer</button>
+            <button class="btn-sm btn-accent" onclick="addTimeSlot()" style="margin-top:10px">+ Add slot</button>
+            <button class="btn-sm btn-primary" onclick="saveTimeSlots()" style="margin-top:10px;margin-left:6px">Save</button>
         </section>
 
         <section class="settings-section glass-card">
-            <h2>Crawler automatique</h2>
+            <h2>Automatic Crawler</h2>
             <div class="form-row">
-                <label>Activation (07h00 & 20h00)</label>
+                <label>Enable (07:00 & 20:00)</label>
                 <div class="toggle-switch" id="crawlerToggle" onclick="toggleCrawler()">
                     <div class="toggle-slider"></div>
                 </div>
-                <span id="crawlerStatus" class="status-text">Inactif</span>
+                <span id="crawlerStatus" class="status-text">Inactive</span>
             </div>
             <div class="crawler-info">
-                <p>Dernière exécution : <span id="lastRun">—</span></p>
-                <p>Prochain déclenchement : <span id="nextRun">—</span></p>
+                <p>Last run: <span id="lastRun">—</span></p>
+                <p>Next run: <span id="nextRun">—</span></p>
             </div>
-            <button class="btn-sm btn-accent" onclick="runCrawlerNow()">Lancer maintenant</button>
-            <h3 style="margin-top:20px">Logs récents</h3>
+            <button class="btn-sm btn-accent" onclick="runCrawlerNow()">Run now</button>
+            <h3 style="margin-top:16px">Recent Logs</h3>
             <div class="logs-container" id="logsContainer">
-                <p class="text-muted">Chargement...</p>
+                <p class="text-muted">Loading...</p>
             </div>
         </section>
 
@@ -84,29 +84,29 @@
                     <input type="number" id="smtpPort" class="input-field input-sm" placeholder="587" value="587">
                 </div>
                 <div class="form-row">
-                    <label>Utilisateur</label>
+                    <label>User</label>
                     <input type="text" id="smtpUser" class="input-field" placeholder="user@gmail.com">
                 </div>
                 <div class="form-row">
-                    <label>Mot de passe</label>
+                    <label>Password</label>
                     <input type="password" id="smtpPassword" class="input-field" placeholder="••••••••">
                 </div>
                 <div class="form-row">
-                    <label>Email destinataire</label>
+                    <label>Recipient email</label>
                     <input type="email" id="smtpTo" class="input-field" placeholder="dest@email.com">
                 </div>
                 <div class="form-row">
-                    <label>Envoyer un email après chaque crawl</label>
+                    <label>Send email after each crawl</label>
                     <div class="toggle-switch" id="emailToggle" onclick="toggleEmail()">
                         <div class="toggle-slider"></div>
                     </div>
                 </div>
             </div>
-            <div style="margin-top:12px;display:flex;gap:8px">
-                <button class="btn-sm btn-primary" onclick="saveEmailSettings()">Enregistrer</button>
-                <button class="btn-sm btn-accent" onclick="testSmtp()">Test connexion SMTP</button>
+            <div style="margin-top:10px;display:flex;gap:6px">
+                <button class="btn-sm btn-primary" onclick="saveEmailSettings()">Save</button>
+                <button class="btn-sm btn-accent" onclick="testSmtp()">Test SMTP</button>
             </div>
-            <p id="smtpTestResult" class="text-muted" style="margin-top:8px"></p>
+            <p id="smtpTestResult" class="text-muted" style="margin-top:6px"></p>
         </section>
     </main>
 

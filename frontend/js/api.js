@@ -68,6 +68,14 @@ const API = {
         return this.post('/api/flights/search', params);
     },
 
+    async cancelSearch() {
+        return this.post('/api/flights/cancel');
+    },
+
+    async getPriceHistory(flightId) {
+        return this.get(`/api/flights/price-history/${flightId}`);
+    },
+
     async getSearches() {
         return this.get('/api/searches');
     },

@@ -1,3 +1,5 @@
+/* === FlyCal — Calendar Utilities === */
+
 let _settings = null;
 
 async function loadSettings() {
@@ -8,10 +10,10 @@ async function loadSettings() {
             _settings = {
                 ideal_price: 100,
                 time_slots: [
-                    { label: 'Confortable', start: '10:00', end: '18:00', color: 'green' },
+                    { label: 'Comfortable', start: '10:00', end: '18:00', color: 'green' },
                     { label: 'Acceptable', start: '06:00', end: '10:00', color: 'orange' },
-                    { label: 'Difficile', start: '00:00', end: '06:00', color: 'red' },
-                    { label: 'Tardif', start: '18:00', end: '00:00', color: 'orange' },
+                    { label: 'Difficult', start: '00:00', end: '06:00', color: 'red' },
+                    { label: 'Late', start: '18:00', end: '00:00', color: 'orange' },
                 ],
             };
         }
@@ -94,16 +96,19 @@ function formatDateHeader(dateStr) {
     try {
         const d = new Date(dateStr + 'T00:00:00');
         const options = { weekday: 'long', day: 'numeric', month: 'long' };
-        const formatted = d.toLocaleDateString('fr-FR', options);
-        return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+        const formatted = d.toLocaleDateString('en-US', options);
+        return formatted;
     } catch (e) {
         return dateStr;
     }
 }
 
+/**
+ * Render a traditional calendar view (used on searches page modal).
+ */
 function renderCalendar(container, flights, selectedId, onSelect, settings) {
     if (!flights || flights.length === 0) {
-        container.innerHTML = '<div class="no-flights">Aucun vol trouvé</div>';
+        container.innerHTML = '<div class="no-flights">No flights found</div>';
         return;
     }
 
@@ -125,7 +130,7 @@ function renderCalendar(container, flights, selectedId, onSelect, settings) {
         html += `<div class="calendar-day">`;
         html += `<div class="day-header">`;
         html += `<span class="day-date">${formatDateHeader(dateKey)}</span>`;
-        html += `<span class="day-count">${dayFlights.length} vol${dayFlights.length > 1 ? 's' : ''}</span>`;
+        html += `<span class="day-count">${dayFlights.length} flight${dayFlights.length > 1 ? 's' : ''}</span>`;
         html += `</div>`;
         html += `<div class="day-flights">`;
 
@@ -135,8 +140,7 @@ function renderCalendar(container, flights, selectedId, onSelect, settings) {
             const duration = calculateDuration(f.departure_time, f.arrival_time);
             const abbrev = airlineAbbrev(f.airline_name);
 
-            html += `<div class="flight-card color-${color}${isSelected ? ' selected' : ''}" data-flight-id="${f.id}" onclick="handleFlightClick(${f.id}, '${f.direction}')">`;
-
+            html += `<div class="flight-card color-${color}${isSelected ? ' selected' : ''}" data-flight-id="${f.id}">`;
             html += `<div class="flight-airline">`;
             if (f.airline_logo_url) {
                 html += `<img src="${f.airline_logo_url}" alt="${f.airline_name}" class="airline-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`;
@@ -146,7 +150,6 @@ function renderCalendar(container, flights, selectedId, onSelect, settings) {
             }
             html += `<div class="airline-name">${f.airline_name || ''}</div>`;
             html += `</div>`;
-
             html += `<div class="flight-details">`;
             html += `<div class="flight-times">`;
             html += `<span class="flight-time">${f.departure_time || '--:--'}</span>`;
@@ -162,12 +165,10 @@ function renderCalendar(container, flights, selectedId, onSelect, settings) {
             html += `<span class="airport-code">${f.destination_airport || '???'}</span>`;
             html += `</div>`;
             html += `</div>`;
-
             html += `<div class="flight-price">`;
             html += `<span class="price-amount">${Math.round(f.price)}</span>`;
             html += `<span class="price-currency">€</span>`;
             html += `</div>`;
-
             html += `</div>`;
         }
 

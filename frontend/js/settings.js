@@ -1,3 +1,5 @@
+/* === FlyCal — Settings Page === */
+
 let settingsAirlines = [];
 let settingsTimeSlots = [];
 let settingsData = {};
@@ -16,7 +18,6 @@ async function loadAllSettings() {
         settingsData = await API.getSettings();
 
         document.getElementById('idealPrice').value = settingsData.ideal_price || 100;
-
         document.getElementById('smtpHost').value = settingsData.smtp_host || '';
         document.getElementById('smtpPort').value = settingsData.smtp_port || 587;
         document.getElementById('smtpUser').value = settingsData.smtp_user || '';
@@ -49,7 +50,7 @@ async function loadAirlinesList() {
 function renderAirlines() {
     const container = document.getElementById('airlinesListSettings');
     if (!settingsAirlines.length) {
-        container.innerHTML = '<p class="text-muted">Aucune compagnie configurée</p>';
+        container.innerHTML = '<p class="text-muted">No airlines configured</p>';
         return;
     }
 
@@ -63,23 +64,23 @@ function renderAirlines() {
             <div class="airline-logo-cell">
                 ${logoPreview}
             </div>
-            <input type="text" class="input-field" value="${a.name}" data-field="name" placeholder="Nom">
-            <label style="font-size:0.8rem;color:var(--text-muted)">Frais fixes (€)</label>
+            <input type="text" class="input-field" value="${a.name}" data-field="name" placeholder="Name">
+            <label style="font-size:0.75rem;color:var(--text-muted)">Fixed fees (€)</label>
             <input type="number" class="input-field input-sm" value="${a.fees_fixed}" data-field="fees_fixed" step="0.01" min="0">
-            <label style="font-size:0.8rem;color:var(--text-muted)">Frais (%)</label>
+            <label style="font-size:0.75rem;color:var(--text-muted)">Fees (%)</label>
             <input type="number" class="input-field input-sm" value="${a.fees_percent}" data-field="fees_percent" step="0.01" min="0">
             <div class="toggle-switch ${a.enabled ? 'active' : ''}" onclick="toggleAirlineEnabled(${a.id}, this)">
                 <div class="toggle-slider"></div>
             </div>
             <div class="airline-logo-actions">
-                <input type="text" class="input-field input-sm" value="${logoSrc}" data-field="logo_url" placeholder="URL du logo">
+                <input type="text" class="input-field input-sm" value="${logoSrc}" data-field="logo_url" placeholder="Logo URL">
                 <label class="btn-sm btn-secondary logo-upload-btn">
                     📁
                     <input type="file" accept="image/*" style="display:none" onchange="uploadLogo(${a.id}, this)">
                 </label>
             </div>
-            <button class="btn-sm btn-accent" onclick="saveAirline(${a.id})">Sauver</button>
-            <button class="btn-sm btn-danger" onclick="deleteAirline(${a.id})">Supprimer</button>
+            <button class="btn-sm btn-accent" onclick="saveAirline(${a.id})">Save</button>
+            <button class="btn-sm btn-danger" onclick="deleteAirline(${a.id})">Delete</button>
         </div>`;
     }).join('');
 }
@@ -92,7 +93,7 @@ async function toggleAirlineEnabled(id, el) {
         const airline = settingsAirlines.find(a => a.id === id);
         if (airline) airline.enabled = enabled;
     } catch (e) {
-        alert('Erreur: ' + e.message);
+        alert('Error: ' + e.message);
         el.classList.toggle('active');
     }
 }
@@ -110,7 +111,7 @@ async function saveAirline(id) {
         await API.updateAirline(id, { name, fees_fixed, fees_percent, logo_url });
         await loadAirlinesList();
     } catch (e) {
-        alert('Erreur: ' + e.message);
+        alert('Error: ' + e.message);
     }
 }
 
@@ -127,28 +128,28 @@ async function uploadLogo(airlineId, input) {
         if (!resp.ok) throw new Error('Upload failed');
         await loadAirlinesList();
     } catch (e) {
-        alert('Erreur upload: ' + e.message);
+        alert('Upload error: ' + e.message);
     }
 }
 
 async function deleteAirline(id) {
-    if (!confirm('Supprimer cette compagnie ?')) return;
+    if (!confirm('Delete this airline?')) return;
     try {
         await API.deleteAirline(id);
         await loadAirlinesList();
     } catch (e) {
-        alert('Erreur: ' + e.message);
+        alert('Error: ' + e.message);
     }
 }
 
 async function addAirline() {
-    const name = prompt('Nom de la compagnie :');
+    const name = prompt('Airline name:');
     if (!name || !name.trim()) return;
     try {
         await API.createAirline({ name: name.trim(), fees_fixed: 0, fees_percent: 0, enabled: true });
         await loadAirlinesList();
     } catch (e) {
-        alert('Erreur: ' + e.message);
+        alert('Error: ' + e.message);
     }
 }
 
@@ -156,37 +157,37 @@ async function saveIdealPrice() {
     const val = document.getElementById('idealPrice').value;
     try {
         await API.updateSettings({ ideal_price: val });
-        alert('Prix de référence enregistré.');
+        alert('Reference price saved.');
     } catch (e) {
-        alert('Erreur: ' + e.message);
+        alert('Error: ' + e.message);
     }
 }
 
 function renderTimeSlots() {
     const container = document.getElementById('timeSlotsContainer');
     if (!settingsTimeSlots.length) {
-        container.innerHTML = '<p class="text-muted">Aucune plage configurée</p>';
+        container.innerHTML = '<p class="text-muted">No time slots configured</p>';
         return;
     }
 
     container.innerHTML = settingsTimeSlots.map((slot, i) => `
         <div class="timeslot-row" data-index="${i}">
             <input type="text" class="input-field input-sm" value="${slot.label || ''}" placeholder="Label" data-field="label">
-            <input type="time" value="${slot.start || '00:00'}" data-field="start">
+            <input type="time" value="${slot.start || '00:00'}" data-field="start" onclick="if(this.showPicker)this.showPicker()">
             <span style="color:var(--text-muted)">→</span>
-            <input type="time" value="${slot.end || '00:00'}" data-field="end">
+            <input type="time" value="${slot.end || '00:00'}" data-field="end" onclick="if(this.showPicker)this.showPicker()">
             <select data-field="color">
-                <option value="green" ${slot.color === 'green' ? 'selected' : ''}>Vert</option>
+                <option value="green" ${slot.color === 'green' ? 'selected' : ''}>Green</option>
                 <option value="orange" ${slot.color === 'orange' ? 'selected' : ''}>Orange</option>
-                <option value="red" ${slot.color === 'red' ? 'selected' : ''}>Rouge</option>
+                <option value="red" ${slot.color === 'red' ? 'selected' : ''}>Red</option>
             </select>
-            <button class="btn-sm btn-danger" onclick="removeTimeSlot(${i})">Supprimer</button>
+            <button class="btn-sm btn-danger" onclick="removeTimeSlot(${i})">Delete</button>
         </div>
     `).join('');
 }
 
 function addTimeSlot() {
-    settingsTimeSlots.push({ label: 'Nouvelle plage', start: '00:00', end: '06:00', color: 'orange' });
+    settingsTimeSlots.push({ label: 'New slot', start: '00:00', end: '06:00', color: 'orange' });
     renderTimeSlots();
 }
 
@@ -210,9 +211,9 @@ async function saveTimeSlots() {
     try {
         await API.updateSettings({ time_slots: slots });
         settingsTimeSlots = slots;
-        alert('Plages horaires enregistrées.');
+        alert('Time slots saved.');
     } catch (e) {
-        alert('Erreur: ' + e.message);
+        alert('Error: ' + e.message);
     }
 }
 
@@ -228,25 +229,25 @@ async function loadCrawlerInfo() {
         const nextRun = document.getElementById('nextRun');
 
         dot.className = 'crawler-dot ' + (status.enabled ? 'active' : 'inactive');
-        label.textContent = status.enabled ? 'Crawler actif' : 'Crawler inactif';
+        label.textContent = status.enabled ? 'Crawler ON' : 'Crawler OFF';
 
         if (status.enabled) {
             toggle.classList.add('active');
-            statusText.textContent = 'Actif';
+            statusText.textContent = 'Active';
         } else {
             toggle.classList.remove('active');
-            statusText.textContent = 'Inactif';
+            statusText.textContent = 'Inactive';
         }
 
         if (status.last_run && status.last_run.started_at) {
             const d = new Date(status.last_run.started_at);
-            lastRun.textContent = d.toLocaleString('fr-FR') + ' — ' + (status.last_run.status || '');
+            lastRun.textContent = d.toLocaleString('en-US') + ' — ' + (status.last_run.status || '');
         } else {
             lastRun.textContent = '—';
         }
 
         nextRun.textContent = status.next_run
-            ? new Date(status.next_run).toLocaleString('fr-FR')
+            ? new Date(status.next_run).toLocaleString('en-US')
             : '—';
     } catch (e) {
         console.error('Failed to load crawler info:', e);
@@ -255,21 +256,21 @@ async function loadCrawlerInfo() {
 
 async function toggleCrawler() {
     try {
-        const result = await API.toggleCrawler();
+        await API.toggleCrawler();
         await loadCrawlerInfo();
     } catch (e) {
-        alert('Erreur: ' + e.message);
+        alert('Error: ' + e.message);
     }
 }
 
 async function runCrawlerNow() {
     try {
         await API.runCrawler();
-        alert('Crawler lancé !');
+        alert('Crawler started!');
         setTimeout(loadCrawlerInfo, 2000);
         setTimeout(loadLogs, 5000);
     } catch (e) {
-        alert('Erreur: ' + e.message);
+        alert('Error: ' + e.message);
     }
 }
 
@@ -279,12 +280,12 @@ async function loadLogs() {
         const container = document.getElementById('logsContainer');
 
         if (!logs.length) {
-            container.innerHTML = '<p class="text-muted">Aucun log</p>';
+            container.innerHTML = '<p class="text-muted">No logs</p>';
             return;
         }
 
         container.innerHTML = logs.map(log => {
-            const time = log.started_at ? new Date(log.started_at).toLocaleString('fr-FR') : '—';
+            const time = log.started_at ? new Date(log.started_at).toLocaleString('en-US') : '—';
             const statusColor = log.status === 'success' ? 'var(--green)' :
                                 log.status === 'error' ? 'var(--red)' :
                                 log.status === 'running' ? 'var(--orange)' : 'var(--text-muted)';
@@ -316,25 +317,25 @@ async function saveEmailSettings() {
             smtp_to: document.getElementById('smtpTo').value,
             smtp_send_enabled: emailEnabled,
         });
-        alert('Paramètres email enregistrés.');
+        alert('Email settings saved.');
     } catch (e) {
-        alert('Erreur: ' + e.message);
+        alert('Error: ' + e.message);
     }
 }
 
 async function testSmtp() {
     const resultEl = document.getElementById('smtpTestResult');
-    resultEl.textContent = 'Test en cours...';
+    resultEl.textContent = 'Testing...';
     resultEl.style.color = 'var(--text-muted)';
 
     await saveEmailSettings();
 
     try {
         const result = await API.testSmtp();
-        resultEl.textContent = result.message || 'Connexion réussie !';
+        resultEl.textContent = result.message || 'Connection successful!';
         resultEl.style.color = 'var(--green)';
     } catch (e) {
-        resultEl.textContent = 'Échec : ' + e.message;
+        resultEl.textContent = 'Failed: ' + e.message;
         resultEl.style.color = 'var(--red)';
     }
 }

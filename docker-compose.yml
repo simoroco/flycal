@@ -2,7 +2,7 @@ services:
   app:
     build: .
     ports:
-      - "4444:4444"
+      - "4445:4445"
     volumes:
       - ./data:/app/data
     environment:

@@ -21,6 +21,9 @@ logger = logging.getLogger("flycal.routers.flights")
 
 router = APIRouter(prefix="/api/flights", tags=["flights"])
 
+# Global abort flag for cancelling in-progress searches
+_abort_search_ids: set = set()
+
 
 class SearchRequest(BaseModel):
     origin_city: str
@@ -170,6 +173,9 @@ async def _run_scraping(search_id: int):
 
         # Phase 1: Try direct scrapers
         for airline_name, scraper_cls in scraper_classes.items():
+            if search_id in _abort_search_ids:
+                logger.info(f"Search {search_id} cancelled by user")
+                raise Exception("Search cancelled by user")
             if airline_name not in airline_map:
                 continue
             try:
@@ -299,7 +305,36 @@ async def _run_scraping(search_id: int):
             log_entry.ended_at = datetime.utcnow()
             db.commit()
     finally:
+        _abort_search_ids.discard(search_id)
         db.close()
+
+
+@router.get("/price-history/{flight_id}")
+def get_price_history(flight_id: int, db: Session = Depends(get_db)):
+    """Get price history for a specific flight."""
+    records = (
+        db.query(PriceHistory)
+        .filter(PriceHistory.flight_id == flight_id)
+        .order_by(PriceHistory.recorded_at.asc())
+        .all()
+    )
+    return [
+        {
+            "price": r.price,
+            "recorded_at": r.recorded_at.isoformat() if r.recorded_at else "",
+        }
+        for r in records
+    ]
+
+
+@router.post("/cancel")
+async def cancel_search(db: Session = Depends(get_db)):
+    """Cancel the current running search."""
+    last_search = db.query(Search).filter(Search.is_last == True).first()
+    if last_search:
+        _abort_search_ids.add(last_search.id)
+        return {"status": "cancelled", "search_id": last_search.id}
+    return {"status": "no_search_running"}
 
 
 @router.post("/search")

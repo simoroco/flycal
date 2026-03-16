@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlyCal — Comparateur de vols</title>
+    <title>FlyCal — Flight Comparator</title>
     <link rel="stylesheet" href="/css/main.css">
     <link rel="stylesheet" href="/css/calendar.css">
 </head>
@@ -15,13 +15,13 @@
                 <span class="logo-text">FlyCal</span>
             </div>
             <nav class="nav">
-                <a href="/" class="nav-link active">Accueil</a>
-                <a href="/searches.html" class="nav-link">Recherches</a>
-                <a href="/settings.html" class="nav-link">Paramètres</a>
+                <a href="/" class="nav-link active">Home</a>
+                <a href="/searches.html" class="nav-link">Searches</a>
+                <a href="/settings.html" class="nav-link">Settings</a>
             </nav>
         </div>
         <div class="header-right">
-            <div class="crawler-badge" id="crawlerBadge">
+            <div class="crawler-badge" id="crawlerBadge" onclick="toggleCrawlerFromHeader()">
                 <span class="crawler-dot" id="crawlerDot"></span>
                 <span id="crawlerLabel">Crawler</span>
             </div>
@@ -30,78 +30,74 @@
 
     <section class="search-bar" id="searchBar">
         <div class="search-bar-inner">
-            <div class="search-row">
-                <div class="search-field">
-                    <label>Ville de départ</label>
-                    <input type="text" id="originCity" placeholder="Ex: Paris" autocomplete="off">
-                </div>
-                <div class="search-field">
-                    <label>Ville d'arrivée</label>
-                    <input type="text" id="destinationCity" placeholder="Ex: Marrakech" autocomplete="off">
-                </div>
-                <div class="search-field">
-                    <label>Type</label>
-                    <div class="toggle-group">
-                        <button class="toggle-btn active" id="btnOneway" onclick="setTripType('oneway')">Aller simple</button>
-                        <button class="toggle-btn" id="btnRoundtrip" onclick="setTripType('roundtrip')">Aller-retour</button>
-                    </div>
-                </div>
+            <div class="search-row-compact">
+                <input type="text" id="originCity" placeholder="From" autocomplete="off" class="compact-input city-input" list="cityList">
+                <span class="compact-arrow">→</span>
+                <input type="text" id="destinationCity" placeholder="To" autocomplete="off" class="compact-input city-input" list="cityList">
+                <input type="date" id="dateFrom" class="compact-input date-input">
+                <span class="compact-arrow">→</span>
+                <input type="date" id="dateTo" class="compact-input date-input">
+                <button class="btn-search" id="btnSearch" onclick="launchSearch()">
+                    <span id="searchBtnText">Search</span>
+                    <span id="searchLoader" class="loader hidden"></span>
+                </button>
             </div>
-            <div class="search-row">
-                <div class="search-field">
-                    <label>Date début</label>
-                    <input type="date" id="dateFrom">
-                </div>
-                <div class="search-field">
-                    <label>Date fin</label>
-                    <input type="date" id="dateTo">
-                </div>
-                <div class="search-field airlines-field">
-                    <label>Compagnies</label>
-                    <div class="airlines-checkboxes" id="airlinesCheckboxes"></div>
-                </div>
-                <div class="search-field search-action">
-                    <button class="btn-primary" id="btnSearch" onclick="launchSearch()">
-                        <span id="searchBtnText">Lancer la recherche</span>
-                        <span id="searchLoader" class="loader hidden"></span>
-                    </button>
-                </div>
-            </div>
+            <datalist id="cityList"></datalist>
         </div>
     </section>
 
+    <!-- Search in progress band -->
+    <section class="search-progress-band hidden" id="searchProgressBand">
+        <div class="progress-inner">
+            <span class="loader"></span>
+            <span class="progress-text" id="progressText">Searching...</span>
+            <button class="btn-cancel" id="btnCancel" onclick="cancelSearch()">Cancel</button>
+        </div>
+    </section>
+
+    <!-- Recap Banner (sticky) -->
     <section class="recap-banner hidden" id="recapBanner">
         <div class="recap-inner">
-            <div class="recap-flight" id="recapOutbound">
-                <span class="recap-label">Aller</span>
+            <div class="recap-section recap-outbound">
+                <span class="recap-tag">OUT</span>
                 <span class="recap-detail" id="recapOutDetail">—</span>
             </div>
-            <div class="recap-flight" id="recapReturn">
-                <span class="recap-label">Retour</span>
+            <div class="recap-section recap-return">
+                <span class="recap-tag">RET</span>
                 <span class="recap-detail" id="recapRetDetail">—</span>
             </div>
-            <div class="recap-total">
-                <span class="recap-label">Total</span>
-                <span class="recap-price" id="recapTotal">0 €</span>
+            <div class="recap-section recap-days">
+                <span class="recap-tag">DAYS</span>
+                <span class="recap-detail" id="recapDays">—</span>
+            </div>
+            <div class="recap-section recap-fees">
+                <span class="recap-breakdown" id="recapBreakdown"></span>
+            </div>
+            <div class="recap-total-box">
+                <span class="recap-total-label">TOTAL</span>
+                <span class="recap-total-price" id="recapTotal">0 €</span>
             </div>
         </div>
     </section>
 
     <main class="main-content" id="mainContent">
-        <div class="columns">
-            <div class="column" id="colOutbound">
-                <h2 class="column-title">Vols aller</h2>
-                <div class="calendar-container" id="calendarOutbound">
+        <div class="flight-layout">
+            <div class="flight-col" id="colOutbound">
+                <h2 class="col-title">Outbound</h2>
+                <div class="flight-list" id="listOutbound">
                     <div class="empty-state" id="emptyOutbound">
-                        <p>Lancez une recherche pour voir les vols disponibles</p>
+                        <p>Launch a search to see available flights</p>
                     </div>
                 </div>
             </div>
-            <div class="column" id="colReturn">
-                <h2 class="column-title">Vols retour</h2>
-                <div class="calendar-container" id="calendarReturn">
+            <div class="calendar-col" id="calendarCol">
+                <div class="calendar-strip" id="calendarStrip"></div>
+            </div>
+            <div class="flight-col" id="colReturn">
+                <h2 class="col-title">Return</h2>
+                <div class="flight-list" id="listReturn">
                     <div class="empty-state" id="emptyReturn">
-                        <p>Lancez une recherche pour voir les vols disponibles</p>
+                        <p>Launch a search to see available flights</p>
                     </div>
                 </div>
             </div>

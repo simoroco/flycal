@@ -173,10 +173,10 @@ def init_db():
             "crawler_enabled": "false",
             "ideal_price": "100",
             "time_slots": json.dumps([
-                {"label": "Confortable", "start": "10:00", "end": "18:00", "color": "green"},
+                {"label": "Comfortable", "start": "10:00", "end": "18:00", "color": "green"},
                 {"label": "Acceptable", "start": "06:00", "end": "10:00", "color": "orange"},
-                {"label": "Difficile", "start": "00:00", "end": "06:00", "color": "red"},
-                {"label": "Tardif", "start": "18:00", "end": "00:00", "color": "orange"},
+                {"label": "Difficult", "start": "00:00", "end": "06:00", "color": "red"},
+                {"label": "Late", "start": "18:00", "end": "00:00", "color": "orange"},
             ]),
         }
         for key, value in default_settings.items():
