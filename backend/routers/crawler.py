@@ -98,6 +98,19 @@ async def manual_run(db: Session = Depends(get_db)):
     return {"status": "crawler_started", "search_id": last_search.id}
 
 
+@router.post("/update-schedule")
+def update_schedule(data: dict, db: Session = Depends(get_db)):
+    """Update crawler schedule times. Expects {times: '07:00,22:00' or '07:00'}"""
+    times = data.get("times", "07:00,22:00")
+    _set_setting(db, "crawler_times", times)
+    db.commit()
+
+    from scheduler import update_schedule_times
+    update_schedule_times(times)
+
+    return {"ok": True, "times": times}
+
+
 @router.get("/logs", tags=["logs"])
 def get_logs(db: Session = Depends(get_db)):
     logs = (

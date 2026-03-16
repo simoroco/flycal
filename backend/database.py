@@ -174,6 +174,7 @@ def init_db():
             "crawler_interval": "60",
             "crawler_search_id": "",
             "crawler_started_at": "",
+            "crawler_times": "07:00,22:00",
             "ideal_price": "100",
             "time_slots": json.dumps([
                 {"label": "Comfortable", "start": "10:00", "end": "18:00", "color": "green"},

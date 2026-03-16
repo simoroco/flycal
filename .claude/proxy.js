@@ -1,16 +1,18 @@
 const http = require('http');
 
-const TARGET_HOST = '127.0.0.1';
-const TARGET_PORT = 4445;
+const TARGET_HOST = 'localhost';
+const TARGET_PORT = 4444;
 const LISTEN_PORT = 8080;
 
 const server = http.createServer((clientReq, clientRes) => {
+  const headers = { ...clientReq.headers };
+  delete headers.host; // Let Node set the correct Host header
   const options = {
     hostname: TARGET_HOST,
     port: TARGET_PORT,
     path: clientReq.url,
     method: clientReq.method,
-    headers: { ...clientReq.headers, host: `${TARGET_HOST}:${TARGET_PORT}` }
+    headers
   };
 
   const proxyReq = http.request(options, (proxyRes) => {

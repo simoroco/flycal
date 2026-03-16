@@ -77,6 +77,16 @@ def list_searches(db: Session = Depends(get_db)):
     return [_search_to_dict(s) for s in searches]
 
 
+@router.delete("/{search_id}")
+def delete_search(search_id: int, db: Session = Depends(get_db)):
+    search = db.query(Search).filter(Search.id == search_id).first()
+    if not search:
+        raise HTTPException(status_code=404, detail="Search not found")
+    db.delete(search)
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/{search_id}/rerun")
 async def rerun_search(search_id: int, db: Session = Depends(get_db)):
     search = db.query(Search).filter(Search.id == search_id).first()

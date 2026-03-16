@@ -341,7 +341,10 @@ async def _run_scraping(search_id: int):
     except Exception as e:
         logger.error(f"Scraping failed for search {search_id}: {e}")
         if log_entry:
-            log_entry.status = "error"
+            if "cancelled by user" in str(e).lower():
+                log_entry.status = "cancelled"
+            else:
+                log_entry.status = "error"
             log_entry.error_msg = str(e)[:500]
             log_entry.ended_at = datetime.utcnow()
             db.commit()

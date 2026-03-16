@@ -187,11 +187,29 @@ async function loadCityList() {
 // ── Crawler toggle from header ──
 async function toggleCrawlerFromHeader() {
     try {
-        await API.toggleCrawler();
+        const result = await API.toggleCrawler();
         await loadCrawlerStatus();
+        await showCrawlerToggleNotification(result.enabled);
     } catch (e) {
-        console.error('Failed to toggle crawler:', e);
+        Toast.error('Failed to toggle crawler: ' + e.message);
     }
+}
+
+async function showCrawlerToggleNotification(enabled) {
+    try {
+        const status = await API.getCrawlerStatus();
+        const target = status.target_search;
+        let msg = enabled ? 'Crawler enabled' : 'Crawler disabled';
+        if (enabled && target) {
+            msg += ` for ${(target.origin_city||'').toUpperCase()} → ${(target.destination_city||'').toUpperCase()}`;
+            if (status.next_run) {
+                const next = new Date(status.next_run).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+                msg += ` — Next run: ${next}`;
+            }
+        }
+        if (enabled) Toast.success(msg, 6000);
+        else Toast.info(msg);
+    } catch(e) {}
 }
 
 async function loadCrawlerStatus() {
@@ -287,7 +305,7 @@ async function launchSearch() {
     const dateTo = document.getElementById('dateTo').value;
 
     if (!origin || !destination || !dateFrom || !dateTo) {
-        alert('Please fill in all search fields.');
+        Toast.warning('Please fill in all search fields.');
         return;
     }
 
@@ -316,7 +334,7 @@ async function launchSearch() {
         console.log(`[FlyCal Crawler] Search started: #${result.search_id} ${origin}→${destination}`);
         startPolling(result.search_id);
     } catch (e) {
-        alert('Search error: ' + e.message);
+        Toast.error('Search error: ' + e.message);
         hideSearchingState();
     }
 }

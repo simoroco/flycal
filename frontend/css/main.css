@@ -1048,6 +1048,140 @@ body {
     text-transform: uppercase;
 }
 
+/* ── Toast Notifications ── */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    max-width: 380px;
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    font-size: 0.82rem;
+    color: var(--text);
+    pointer-events: auto;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+.toast-visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast-exit {
+    opacity: 0;
+    transform: translateX(100%);
+}
+
+.toast-success { background: rgba(0, 200, 100, 0.15); border-color: rgba(0, 200, 100, 0.3); }
+.toast-error { background: rgba(220, 50, 50, 0.15); border-color: rgba(220, 50, 50, 0.3); }
+.toast-warning { background: rgba(255, 140, 0, 0.15); border-color: rgba(255, 140, 0, 0.3); }
+.toast-info { background: rgba(108, 99, 255, 0.15); border-color: rgba(108, 99, 255, 0.3); }
+
+.toast-icon {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    width: 18px;
+    text-align: center;
+}
+
+.toast-success .toast-icon { color: var(--green); }
+.toast-error .toast-icon { color: var(--red); }
+.toast-warning .toast-icon { color: var(--orange); }
+.toast-info .toast-icon { color: var(--accent); }
+
+.toast-msg {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    transition: all var(--transition);
+}
+
+.toast-close:hover { color: var(--text); background: rgba(255,255,255,0.1); }
+
+.toast-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.toast-btn {
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: none;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.toast-btn-confirm { background: var(--accent); color: white; }
+.toast-btn-confirm:hover { background: #5a52d5; }
+.toast-btn-cancel { background: rgba(255,255,255,0.1); color: var(--text-muted); }
+.toast-btn-cancel:hover { background: rgba(255,255,255,0.2); color: var(--text); }
+
+/* ── Version Footer ── */
+.version-footer {
+    margin-top: 24px;
+    padding: 16px 0;
+    border-top: 1px solid var(--glass-border);
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    opacity: 0.6;
+}
+
+/* ── History Checkboxes ── */
+.history-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.history-toolbar .btn-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.search-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* ── Status cancelled ── */
+.status-cancelled { background: rgba(255, 140, 0, 0.15); color: var(--orange); }
+
 /* ── Responsive: Tablet (<=1024px) ── */
 @media (max-width: 1024px) {
     .flight-grid-header,

@@ -43,24 +43,66 @@ async def _scheduled_crawl():
         logger.error(f"Failed to send post-crawl email: {e}")
 
 
-def _build_trigger():
-    return CronTrigger(hour="7,22", minute=0, timezone=TZ)
+def _get_crawler_times() -> str:
+    """Read crawler_times from database, default '07:00,22:00'."""
+    try:
+        from database import SessionLocal, Setting
+        db = SessionLocal()
+        try:
+            row = db.query(Setting).filter(Setting.key == "crawler_times").first()
+            return row.value if row and row.value else "07:00,22:00"
+        finally:
+            db.close()
+    except Exception:
+        return "07:00,22:00"
+
+
+def _build_trigger(times_str: str = None):
+    """Build CronTrigger from times string like '07:00,22:00' or '07:00'."""
+    if not times_str:
+        times_str = _get_crawler_times()
+
+    parts = [t.strip() for t in times_str.split(",") if t.strip()]
+    hours = []
+    minutes = []
+    for part in parts:
+        try:
+            h, m = part.split(":")
+            hours.append(int(h))
+            minutes.append(int(m))
+        except (ValueError, IndexError):
+            hours.append(7)
+            minutes.append(0)
+
+    if not hours:
+        return CronTrigger(hour="7,22", minute=0, timezone=TZ)
+
+    # If all minutes are the same, use simple cron
+    if len(set(minutes)) == 1:
+        hour_str = ",".join(str(h) for h in hours)
+        return CronTrigger(hour=hour_str, minute=minutes[0], timezone=TZ)
+    else:
+        # Multiple different minutes - use first time's minute and all hours
+        # (APScheduler cron doesn't support per-hour minutes, so approximate)
+        hour_str = ",".join(str(h) for h in hours)
+        return CronTrigger(hour=hour_str, minute=minutes[0], timezone=TZ)
 
 
 def init_scheduler():
     global _scheduler
     _scheduler = AsyncIOScheduler(timezone=TZ)
 
+    times_str = _get_crawler_times()
     _scheduler.add_job(
         _scheduled_crawl,
-        _build_trigger(),
+        _build_trigger(times_str),
         id=JOB_ID,
         replace_existing=True,
         misfire_grace_time=3600,
     )
 
     _scheduler.start()
-    logger.info("APScheduler started with cron schedule at 7:00 and 22:00 Europe/Paris")
+    logger.info(f"APScheduler started with schedule: {times_str} Europe/Paris")
 
 
 def get_next_run_time() -> str:
@@ -79,15 +121,33 @@ def update_scheduler_state(enabled: bool):
         return
     job = _scheduler.get_job(JOB_ID)
     if enabled:
+        times_str = _get_crawler_times()
         _scheduler.add_job(
             _scheduled_crawl,
-            _build_trigger(),
+            _build_trigger(times_str),
             id=JOB_ID,
             replace_existing=True,
             misfire_grace_time=3600,
         )
-        logger.info("Scheduler job enabled (7:00 & 22:00)")
+        logger.info(f"Scheduler job enabled ({times_str})")
     elif not enabled and job:
         _scheduler.remove_job(JOB_ID)
         logger.info("Scheduler job removed (disabled)")
     logger.info(f"Scheduler state updated: enabled={enabled}")
+
+
+def update_schedule_times(times_str: str):
+    """Update the scheduler with new times (called from API)."""
+    global _scheduler
+    if not _scheduler:
+        return
+    job = _scheduler.get_job(JOB_ID)
+    if job:
+        _scheduler.add_job(
+            _scheduled_crawl,
+            _build_trigger(times_str),
+            id=JOB_ID,
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+        logger.info(f"Scheduler times updated to: {times_str}")

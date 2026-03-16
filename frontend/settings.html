@@ -41,7 +41,7 @@
 
         <section class="settings-section glass-card">
             <h2>Stay Updated with Automatic Crawler</h2>
-            <p class="text-muted" style="margin-bottom:10px">When enabled, the crawler runs automatically at 7:00 and 22:00 daily.</p>
+            <p class="text-muted" style="margin-bottom:10px">When enabled, the crawler runs automatically at the scheduled times daily.</p>
             <div class="form-row">
                 <label>Enable</label>
                 <div class="toggle-switch" id="crawlerToggle" onclick="toggleCrawler()">
@@ -49,6 +49,24 @@
                 </div>
                 <span id="crawlerStatus" class="status-text">Inactive</span>
             </div>
+
+            <!-- Crawler Schedule Times -->
+            <div style="margin-top:12px;padding:10px;background:rgba(255,255,255,0.02);border-radius:var(--radius-sm);border:1px solid var(--glass-border)">
+                <p style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:8px">Schedule</p>
+                <div class="form-row" style="margin-bottom:6px">
+                    <label>Run #1</label>
+                    <input type="time" id="crawlerTime1" value="07:00" class="compact-input" style="width:100px" onclick="if(this.showPicker)this.showPicker()">
+                </div>
+                <div class="form-row" style="margin-bottom:6px">
+                    <label>Run #2</label>
+                    <div class="toggle-switch" id="crawlerTime2Toggle" onclick="toggleSecondCrawlTime()">
+                        <div class="toggle-slider"></div>
+                    </div>
+                    <input type="time" id="crawlerTime2" value="22:00" class="compact-input" style="width:100px" disabled onclick="if(this.showPicker)this.showPicker()">
+                </div>
+                <button class="btn-sm btn-accent" onclick="saveCrawlerSchedule()" style="margin-top:4px">Save schedule</button>
+            </div>
+
             <div id="crawlerTargetInfo" class="crawler-info" style="margin-top:8px"></div>
             <div class="crawler-info">
                 <p>Last run: <span id="lastRun">—</span></p>
@@ -110,9 +128,14 @@
             </div>
             <p id="smtpTestResult" class="text-muted" style="margin-top:6px"></p>
         </section>
+
+        <div class="version-footer">
+            FlyCal v1.0.0 — &copy; 2025 simoroco
+        </div>
     </main>
 
     <script src="/js/api.js"></script>
+    <script src="/js/toast.js"></script>
     <script src="/js/settings.js"></script>
 </body>
 </html>

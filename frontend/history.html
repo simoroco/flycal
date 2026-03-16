@@ -29,18 +29,26 @@
     </header>
 
     <main class="page-content">
-        <h1 class="page-title">History</h1>
+        <div class="history-toolbar">
+            <h1 class="page-title" style="margin-bottom:0">History</h1>
+            <div class="btn-group">
+                <button class="btn-sm btn-danger" id="btnDeleteSelected" onclick="deleteSelected()" style="display:none">Delete selected</button>
+            </div>
+        </div>
         <div class="glass-card">
             <div class="table-wrapper">
                 <table class="data-table" id="searchesTable">
                     <thead>
                         <tr>
+                            <th style="width:30px"><input type="checkbox" class="search-checkbox" id="checkAll" onchange="toggleCheckAll(this)"></th>
                             <th>Date</th>
                             <th>Route</th>
                             <th>Date Range</th>
                             <th>Airlines</th>
                             <th>Status</th>
                             <th>Results</th>
+                            <th>Min Price</th>
+                            <th>Max Price</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -55,11 +63,13 @@
     </main>
 
     <script src="/js/api.js"></script>
+    <script src="/js/toast.js"></script>
     <script src="/js/calendar.js"></script>
     <script>
         let allSearches = [];
         let searchesSettings = null;
         let expandedSearchId = null;
+        let selectedSearchIds = new Set();
 
         async function loadSearchesSettings() {
             try {
@@ -79,6 +89,13 @@
             }
         }
 
+        function getMinMaxPrices(flights) {
+            if (!flights || flights.length === 0) return { min: null, max: null };
+            const prices = flights.map(f => f.price).filter(p => p != null && p > 0);
+            if (prices.length === 0) return { min: null, max: null };
+            return { min: Math.min(...prices), max: Math.max(...prices) };
+        }
+
         function renderSearches(searches) {
             const tbody = document.getElementById('searchesBody');
             const empty = document.getElementById('emptySearches');
@@ -86,6 +103,7 @@
             if (!searches || searches.length === 0) {
                 tbody.innerHTML = '';
                 empty.classList.remove('hidden');
+                updateDeleteBtn();
                 return;
             }
             empty.classList.add('hidden');
@@ -96,7 +114,6 @@
                     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                 }) : '—';
 
-                // Airlines with logos
                 const airlinesHtml = (s.airlines || []).map(name => {
                     const flight = (s.flights || []).find(f => f.airline_name === name && f.airline_logo_url);
                     if (flight && flight.airline_logo_url) {
@@ -107,29 +124,35 @@
 
                 const statusClass = s.status === 'success' ? 'status-success' :
                                     s.status === 'running' ? 'status-running' :
-                                    s.status === 'error' ? 'status-error' : 'status-unknown';
+                                    s.status === 'error' ? 'status-error' :
+                                    s.status === 'cancelled' ? 'status-cancelled' : 'status-unknown';
                 const statusLabel = s.status === 'success' ? 'Done' :
                                     s.status === 'running' ? 'Running' :
-                                    s.status === 'error' ? 'Error' : '—';
+                                    s.status === 'error' ? 'Error' :
+                                    s.status === 'cancelled' ? 'Cancelled' : '—';
                 const isExpanded = expandedSearchId === s.id;
+                const isChecked = selectedSearchIds.has(s.id);
+                const { min, max } = getMinMaxPrices(s.flights);
 
                 html += `<tr style="cursor:pointer" onclick="toggleExpand(${s.id})">
+                    <td onclick="event.stopPropagation()"><input type="checkbox" class="search-checkbox" data-search-id="${s.id}" ${isChecked ? 'checked' : ''} onchange="toggleSearchCheck(${s.id}, this)"></td>
                     <td>${created}</td>
                     <td><strong>${(s.origin_city || '').toUpperCase()}</strong> → <strong>${(s.destination_city || '').toUpperCase()}</strong></td>
                     <td>${s.date_from} → ${s.date_to}</td>
                     <td>${airlinesHtml}</td>
                     <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
                     <td>${s.flight_count || 0} flights</td>
+                    <td>${min != null ? Math.round(min) + '€' : '—'}</td>
+                    <td>${max != null ? Math.round(max) + '€' : '—'}</td>
                     <td class="actions-cell" onclick="event.stopPropagation()">
                         <button class="btn-sm btn-accent" onclick="reuseSearch(${s.id})">Reuse</button>
                     </td>
                 </tr>`;
 
-                // Expandable sub-section with compact flight results
                 if (isExpanded && s.flights && s.flights.length > 0) {
                     const outbound = s.flights.filter(f => f.direction === 'outbound');
                     const ret = s.flights.filter(f => f.direction === 'return');
-                    html += `<tr><td colspan="7" style="padding:0">
+                    html += `<tr><td colspan="10" style="padding:0">
                         <div class="search-expand-content">
                             <div class="search-expand-flights">
                                 <div class="search-expand-col">
@@ -148,7 +171,7 @@
                         </div>
                     </td></tr>`;
                 } else if (isExpanded) {
-                    html += `<tr><td colspan="7" style="padding:0">
+                    html += `<tr><td colspan="10" style="padding:0">
                         <div class="search-expand-content">
                             <p class="text-muted">No flight results for this search.</p>
                         </div>
@@ -156,12 +179,12 @@
                 }
             }
             tbody.innerHTML = html;
+            updateDeleteBtn();
         }
 
         function renderCompactFlights(flights) {
             if (!flights || flights.length === 0) return '<p class="text-muted">No flights</p>';
 
-            // Group by date
             const byDate = {};
             flights.forEach(f => { (byDate[f.flight_date] = byDate[f.flight_date] || []).push(f); });
             const sortedDates = Object.keys(byDate).sort();
@@ -206,16 +229,46 @@
             renderSearches(allSearches);
         }
 
+        function toggleSearchCheck(searchId, checkbox) {
+            if (checkbox.checked) selectedSearchIds.add(searchId);
+            else selectedSearchIds.delete(searchId);
+            updateDeleteBtn();
+        }
+
+        function toggleCheckAll(checkbox) {
+            if (checkbox.checked) allSearches.forEach(s => selectedSearchIds.add(s.id));
+            else selectedSearchIds.clear();
+            renderSearches(allSearches);
+        }
+
+        function updateDeleteBtn() {
+            const btn = document.getElementById('btnDeleteSelected');
+            btn.style.display = selectedSearchIds.size > 0 ? 'inline-block' : 'none';
+            if (selectedSearchIds.size > 0) btn.textContent = `Delete selected (${selectedSearchIds.size})`;
+        }
+
+        function deleteSelected() {
+            if (selectedSearchIds.size === 0) return;
+            Toast.confirm(`Delete ${selectedSearchIds.size} search(es)?`, async () => {
+                let deleted = 0;
+                for (const id of selectedSearchIds) {
+                    try { await API.del(`/api/searches/${id}`); deleted++; }
+                    catch (e) { console.error(`Failed to delete search ${id}:`, e); }
+                }
+                selectedSearchIds.clear();
+                document.getElementById('checkAll').checked = false;
+                Toast.success(`Deleted ${deleted} search(es).`);
+                await loadSearches();
+            });
+        }
+
         function reuseSearch(searchId) {
             const s = allSearches.find(x => x.id === searchId);
             if (!s) return;
             const params = new URLSearchParams({
-                origin: s.origin_city,
-                destination: s.destination_city,
-                date_from: s.date_from,
-                date_to: s.date_to,
-                trip_type: s.trip_type,
-                airlines: (s.airlines || []).join(','),
+                origin: s.origin_city, destination: s.destination_city,
+                date_from: s.date_from, date_to: s.date_to,
+                trip_type: s.trip_type, airlines: (s.airlines || []).join(','),
                 autorun: '1'
             });
             window.location.href = '/?' + params.toString();
@@ -223,9 +276,21 @@
 
         async function toggleCrawlerFromHeader() {
             try {
-                await API.toggleCrawler();
+                const result = await API.toggleCrawler();
                 await loadCrawlerStatus();
-            } catch (e) {}
+                const status = await API.get('/api/crawler/status');
+                const target = status.target_search;
+                let msg = result.enabled ? 'Crawler enabled' : 'Crawler disabled';
+                if (result.enabled && target) {
+                    msg += ` for ${(target.origin_city||'').toUpperCase()} → ${(target.destination_city||'').toUpperCase()}`;
+                    if (status.next_run) {
+                        const next = new Date(status.next_run).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+                        msg += ` — Next: ${next}`;
+                    }
+                }
+                if (result.enabled) Toast.success(msg, 6000);
+                else Toast.info(msg);
+            } catch (e) { Toast.error('Failed to toggle crawler.'); }
         }
 
         async function loadCrawlerStatus() {
