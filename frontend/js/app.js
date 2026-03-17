@@ -622,14 +622,15 @@ function renderDayFlights(flights, direction, isDimmed) {
             html += `<span class="flight-row-duration">${duration}</span>`;
         }
         html += `<span class="flight-row-airports">${f.origin_airport || '???'}→${f.destination_airport || '???'}</span>`;
-        html += `<span class="flight-row-price">${Math.round(f.price)}€</span>`;
-
+        html += `<span class="flight-row-prices">`;
         if (f.oldest_price != null && f.oldest_price !== f.price) {
             const diff = f.price - f.oldest_price;
             const arrow = diff < 0 ? '↓' : '↑';
             const cls = diff < 0 ? 'price-down' : 'price-up';
             html += `<span class="flight-row-old-price ${cls}">${arrow} ${Math.round(f.oldest_price)}€ (${f.oldest_price_date})</span>`;
         }
+        html += `<span class="flight-row-price">${Math.round(f.price)}€</span>`;
+        html += `</span>`;
 
         html += `<div class="price-history-dropdown hidden"></div>`;
         html += `</div>`;
