@@ -136,7 +136,7 @@ def get_last_search(db: Session = Depends(get_db)):
     return _search_to_dict(search, db=db)
 
 
-async def _run_scraping(search_id: int):
+async def _run_scraping(search_id: int, triggered_by: str = "manual"):
     from database import SessionLocal, Flight, PriceHistory, Airline, Search, CrawlerLog
     from scraper.ryanair import RyanairScraper
     from scraper.transavia import TransaviaScraper
@@ -155,7 +155,7 @@ async def _run_scraping(search_id: int):
 
         log_entry = CrawlerLog(
             search_id=search_id,
-            triggered_by="manual",
+            triggered_by=triggered_by,
             status="running",
             started_at=datetime.utcnow(),
         )

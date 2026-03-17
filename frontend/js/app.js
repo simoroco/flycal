@@ -172,15 +172,6 @@ async function checkForBackgroundSearch() {
                 startPolling(data.id);
                 console.log(`[FlyCal Crawler] Resumed polling for background search #${data.id}`);
             }
-        } else if (!isSearching) {
-            // Only auto-launch on first session load
-            if (!sessionStorage.getItem('flycal_launched') && !currentSearchId) {
-                const data = await API.getLastSearch();
-                if (data && data.origin_city) {
-                    sessionStorage.setItem('flycal_launched', '1');
-                    launchSearch();
-                }
-            }
         }
     } catch (e) {
         console.error('Failed to check background search:', e);

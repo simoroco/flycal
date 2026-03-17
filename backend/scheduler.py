@@ -27,13 +27,28 @@ async def _scheduled_crawl():
             logger.info("Scheduler triggered but no last search found, skipping.")
             return
 
-        search_id = last_search.id
+        # Create a new Search entry so each auto-crawl appears in history
+        db.query(Search).filter(Search.is_last == True).update({"is_last": False})
+        new_search = Search(
+            origin_city=last_search.origin_city,
+            destination_city=last_search.destination_city,
+            date_from=last_search.date_from,
+            date_to=last_search.date_to,
+            trip_type=last_search.trip_type,
+            airlines=last_search.airlines,
+            is_last=True,
+            created_at=datetime.utcnow(),
+        )
+        db.add(new_search)
+        db.commit()
+        db.refresh(new_search)
+        search_id = new_search.id
     finally:
         db.close()
 
-    logger.info(f"Scheduler running crawl for search {search_id}")
+    logger.info(f"Scheduler running crawl for search {search_id} (auto)")
     from routers.flights import _run_scraping
-    await _run_scraping(search_id)
+    await _run_scraping(search_id, triggered_by="auto")
 
     # Send email after crawl if enabled
     try:
