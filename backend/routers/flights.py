@@ -12,6 +12,7 @@ from database import (
     Airline,
     Flight,
     PriceHistory,
+    PriceTracker,
     Search,
     CrawlerLog,
     get_db,
@@ -87,19 +88,24 @@ def _flight_to_dict(f: Flight, db=None) -> dict:
         "oldest_price": None,
         "oldest_price_date": None,
     }
-    # Add oldest price if ≥2 price history entries exist
+    # Look up oldest known price from PriceTracker (persists across searches)
     if db:
-        ph_count = db.query(PriceHistory).filter(PriceHistory.flight_id == f.id).count()
-        if ph_count >= 2:
-            oldest = (
-                db.query(PriceHistory)
-                .filter(PriceHistory.flight_id == f.id)
-                .order_by(PriceHistory.recorded_at.asc())
-                .first()
+        oldest = (
+            db.query(PriceTracker)
+            .filter(
+                PriceTracker.airline_id == f.airline_id,
+                PriceTracker.direction == f.direction,
+                PriceTracker.flight_date == f.flight_date,
+                PriceTracker.departure_time == f.departure_time,
+                PriceTracker.origin_airport == f.origin_airport,
+                PriceTracker.destination_airport == f.destination_airport,
             )
-            if oldest:
-                result["oldest_price"] = oldest.price
-                result["oldest_price_date"] = oldest.recorded_at.strftime("%d/%m") if oldest.recorded_at else None
+            .order_by(PriceTracker.recorded_at.asc())
+            .first()
+        )
+        if oldest and oldest.price != f.price:
+            result["oldest_price"] = oldest.price
+            result["oldest_price_date"] = oldest.recorded_at.strftime("%d/%m") if oldest.recorded_at else None
     return result
 
 
@@ -137,7 +143,7 @@ def get_last_search(db: Session = Depends(get_db)):
 
 
 async def _run_scraping(search_id: int, triggered_by: str = "manual"):
-    from database import SessionLocal, Flight, PriceHistory, Airline, Search, CrawlerLog
+    from database import SessionLocal, Flight, PriceHistory, PriceTracker, Airline, Search, CrawlerLog
     from scraper.ryanair import RyanairScraper
     from scraper.transavia import TransaviaScraper
     from scraper.airfrance import AirFranceScraper
@@ -274,24 +280,11 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
                     except Exception as am_err:
                         logger.warning(f"Amadeus fallback failed for {airline_name}: {am_err}")
 
-        # Carry forward oldest price history before deleting old flights
-        old_flights = db.query(Flight).filter(Flight.search_id == search_id).all()
-        oldest_prices = {}
-        for of in old_flights:
-            oldest_ph = (
-                db.query(PriceHistory)
-                .filter(PriceHistory.flight_id == of.id)
-                .order_by(PriceHistory.recorded_at.asc())
-                .first()
-            )
-            if oldest_ph:
-                key = (of.airline_id, str(of.flight_date), of.departure_time, of.direction)
-                oldest_prices[key] = (oldest_ph.price, oldest_ph.recorded_at)
-
         db.query(Flight).filter(Flight.search_id == search_id).delete()
         db.commit()
 
         route_not_served_airlines = set()
+        now = datetime.utcnow()
         for airline_name, result in all_results:
             airline = airline_map.get(airline_name)
             if not airline:
@@ -310,28 +303,29 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
                 destination_airport=result.destination_airport,
                 price=result.price,
                 currency=result.currency,
-                scraped_at=datetime.utcnow(),
+                scraped_at=now,
             )
             db.add(flight)
             db.flush()
 
-            # Re-create oldest price history entry if it existed
-            hist_key = (airline.id, str(result.flight_date), result.departure_time, result.direction)
-            old_entry = oldest_prices.get(hist_key)
-            if old_entry:
-                old_price, old_date = old_entry
-                db.add(PriceHistory(
-                    flight_id=flight.id,
-                    price=old_price,
-                    recorded_at=old_date,
-                ))
-
             ph = PriceHistory(
                 flight_id=flight.id,
                 price=result.price,
-                recorded_at=datetime.utcnow(),
+                recorded_at=now,
             )
             db.add(ph)
+
+            # Record in persistent PriceTracker (cross-search)
+            db.add(PriceTracker(
+                airline_id=airline.id,
+                direction=result.direction,
+                flight_date=result.flight_date,
+                departure_time=result.departure_time,
+                origin_airport=result.origin_airport,
+                destination_airport=result.destination_airport,
+                price=result.price,
+                recorded_at=now,
+            ))
 
         if route_not_served_airlines:
             logger.info(f"Route not served by: {', '.join(route_not_served_airlines)}")

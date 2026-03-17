@@ -87,6 +87,20 @@ class PriceHistory(Base):
     flight = relationship("Flight", back_populates="price_history")
 
 
+class PriceTracker(Base):
+    """Persistent price tracking across searches. Keyed by flight identity (not search-specific)."""
+    __tablename__ = "price_tracker"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    airline_id = Column(Integer, ForeignKey("airlines.id"), nullable=False)
+    direction = Column(Text, nullable=False)
+    flight_date = Column(Date, nullable=False)
+    departure_time = Column(Text, nullable=False)
+    origin_airport = Column(Text, nullable=False)
+    destination_airport = Column(Text, nullable=False)
+    price = Column(Float, nullable=False)
+    recorded_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Setting(Base):
     __tablename__ = "settings"
     key = Column(Text, primary_key=True)
