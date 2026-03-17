@@ -441,26 +441,11 @@ function startPolling(searchId) {
                 prevFlightCount = flightCount;
             }
 
-            if (data && data.flights && data.flights.length > 0) {
-                allFlights = data.flights;
-                renderFlights();
-                autoSelectBestFlights();
-                // Hide central loader and show grid header once we have results
-                const centralLoader = document.getElementById('centralLoader');
-                const gridHeader = document.getElementById('flightGridHeader');
-                if (centralLoader) centralLoader.classList.add('hidden');
-                if (gridHeader) gridHeader.classList.remove('hidden');
-                if (done) {
-                    console.log(`[FlyCal Crawler] Search ${wasCancelled ? 'cancelled' : 'complete'}: ${allFlights.length} total flights`);
-                    clearInterval(pollingTimer);
-                    pollingTimer = null;
-                    hideSearchingState();
-                    if (wasCancelled) Toast.warning('Search cancelled');
-                    else notifySearchComplete(allFlights.length);
-                }
-            } else if (done) {
+            if (done) {
+                // Search finished — render results now
                 allFlights = data ? (data.flights || []) : [];
                 renderFlights();
+                autoSelectBestFlights();
                 console.log(`[FlyCal Crawler] Search ${wasCancelled ? 'cancelled' : 'complete'}: ${allFlights.length} total flights`);
                 clearInterval(pollingTimer);
                 pollingTimer = null;
@@ -468,6 +453,7 @@ function startPolling(searchId) {
                 if (wasCancelled) Toast.warning('Search cancelled');
                 else notifySearchComplete(allFlights.length);
             }
+            // While running, keep loader visible — don't render intermediate results
         } catch (e) {
             console.error('Polling error:', e);
         }
