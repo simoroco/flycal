@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "flycal-frontend",
+      "name": "flycal",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["-e", "const h=require('http');h.createServer((q,r)=>{const o={hostname:'127.0.0.1',port:4445,path:q.url,method:q.method,headers:{...q.headers,host:'127.0.0.1:4445'}};const p=h.request(o,s=>{r.writeHead(s.statusCode,s.headers);s.pipe(r)});q.pipe(p);p.on('error',e=>{r.writeHead(502);r.end('err:'+e.message)})}).listen(8080,()=>console.log('Proxy 8080->4445'))"],
+      "runtimeArgs": ["-e", "const h=require('http');h.createServer((q,r)=>{const o={hostname:'127.0.0.1',port:4444,path:q.url,method:q.method,headers:{...q.headers,host:'127.0.0.1:4444'}};const p=h.request(o,s=>{r.writeHead(s.statusCode,s.headers);s.pipe(r)});q.pipe(p);p.on('error',e=>{r.writeHead(502);r.end('err:'+e.message)})}).listen(8080,()=>console.log('Proxy 8080->4444'))"],
       "port": 8080
     }
   ]

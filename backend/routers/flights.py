@@ -216,6 +216,11 @@ async def _run_scraping(search_id: int):
                 if airline_name != "Ryanair":
                     failed_airlines.append(airline_name)
 
+        # Check abort before Phase 2
+        if search_id in _abort_search_ids:
+            logger.info(f"Search {search_id} cancelled by user")
+            raise Exception("Search cancelled by user")
+
         # Phase 2: Single bulk Google Flights search for all failed airlines
         if failed_airlines:
             logger.info(f"Running Google Flights bulk search for: {', '.join(failed_airlines)}")
@@ -240,9 +245,17 @@ async def _run_scraping(search_id: int):
                 logger.warning(f"Google Flights bulk search failed: {e}")
                 still_failed = failed_airlines
 
+            # Check abort before Phase 3
+            if search_id in _abort_search_ids:
+                logger.info(f"Search {search_id} cancelled by user")
+                raise Exception("Search cancelled by user")
+
             # Phase 3: Amadeus fallback for airlines still without results
             if still_failed and use_amadeus:
                 for airline_name in still_failed:
+                    if search_id in _abort_search_ids:
+                        logger.info(f"Search {search_id} cancelled by user")
+                        raise Exception("Search cancelled by user")
                     try:
                         amadeus_results = await amadeus_search(
                             airline_name=airline_name,

@@ -162,11 +162,12 @@ async function checkForBackgroundSearch() {
     try {
         const status = await API.getCrawlerStatus();
         if (status && status.last_run && status.last_run.status === 'running') {
-            // A search is running in background, resume polling
+            // A search is running in background, resume polling — clear old results
             const data = await API.getLastSearch();
             if (data && data.id) {
                 isSearching = true;
                 currentSearchId = data.id;
+                allFlights = [];
                 showSearchingState();
                 startPolling(data.id);
                 console.log(`[FlyCal Crawler] Resumed polling for background search #${data.id}`);
@@ -323,15 +324,17 @@ function showSearchingState() {
     const progressBand = document.getElementById('searchProgressBand');
     const centralLoader = document.getElementById('centralLoader');
     const gridHeader = document.getElementById('flightGridHeader');
+    const flightGrid = document.getElementById('flightGrid');
     const btn = document.getElementById('btnSearch');
     searchBar.classList.add('greyed-out');
     progressBand.classList.remove('hidden');
     btn.disabled = true;
-    // Show central loader only if no flights are displayed yet
-    if (allFlights.length === 0 && centralLoader) {
-        centralLoader.classList.remove('hidden');
-        if (gridHeader) gridHeader.classList.add('hidden');
-    }
+    // Always show central loader and clear flight grid during search
+    if (centralLoader) centralLoader.classList.remove('hidden');
+    if (gridHeader) gridHeader.classList.add('hidden');
+    if (flightGrid) flightGrid.innerHTML = '';
+    // Animate logo
+    document.querySelectorAll('.logo-img').forEach(el => el.classList.add('logo-searching'));
     startSearchTimer();
 }
 
@@ -347,6 +350,8 @@ function hideSearchingState() {
     btn.disabled = false;
     if (centralLoader) centralLoader.classList.add('hidden');
     if (gridHeader) gridHeader.classList.remove('hidden');
+    // Stop logo animation
+    document.querySelectorAll('.logo-img').forEach(el => el.classList.remove('logo-searching'));
     stopSearchTimer();
 }
 
@@ -423,7 +428,9 @@ function startPolling(searchId) {
         try {
             const data = await API.getLastSearch();
             const status = await API.getCrawlerStatus();
-            const done = status && status.last_run && status.last_run.status !== 'running';
+            const lastRunStatus = status && status.last_run ? status.last_run.status : null;
+            const done = lastRunStatus && lastRunStatus !== 'running';
+            const wasCancelled = lastRunStatus === 'cancelled';
 
             const flightCount = data && data.flights ? data.flights.length : 0;
             if (flightCount !== prevFlightCount) {
@@ -444,20 +451,22 @@ function startPolling(searchId) {
                 if (centralLoader) centralLoader.classList.add('hidden');
                 if (gridHeader) gridHeader.classList.remove('hidden');
                 if (done) {
-                    console.log(`[FlyCal Crawler] Search complete: ${allFlights.length} total flights`);
+                    console.log(`[FlyCal Crawler] Search ${wasCancelled ? 'cancelled' : 'complete'}: ${allFlights.length} total flights`);
                     clearInterval(pollingTimer);
                     pollingTimer = null;
                     hideSearchingState();
-                    notifySearchComplete(allFlights.length);
+                    if (wasCancelled) Toast.warning('Search cancelled');
+                    else notifySearchComplete(allFlights.length);
                 }
             } else if (done) {
                 allFlights = data ? (data.flights || []) : [];
                 renderFlights();
-                console.log(`[FlyCal Crawler] Search complete: ${allFlights.length} total flights`);
+                console.log(`[FlyCal Crawler] Search ${wasCancelled ? 'cancelled' : 'complete'}: ${allFlights.length} total flights`);
                 clearInterval(pollingTimer);
                 pollingTimer = null;
                 hideSearchingState();
-                notifySearchComplete(allFlights.length);
+                if (wasCancelled) Toast.warning('Search cancelled');
+                else notifySearchComplete(allFlights.length);
             }
         } catch (e) {
             console.error('Polling error:', e);
@@ -750,11 +759,7 @@ function updateRecap() {
         daysEl.textContent = '';
     }
 
-    if (totalFixed > 0 || totalPercent > 0) {
-        breakdownEl.textContent = `${Math.round(totalBase)}€ + ${Math.round(totalFixed)}€ fees + ${Math.round(totalPercent)}€ %`;
-    } else {
-        breakdownEl.textContent = '';
-    }
+    breakdownEl.textContent = '';
 }
 
 document.addEventListener('DOMContentLoaded', init);
