@@ -50,13 +50,6 @@ async def _scheduled_crawl():
     from routers.flights import _run_scraping
     await _run_scraping(search_id, triggered_by="auto")
 
-    # Send email after crawl if enabled
-    try:
-        from email_service import send_crawl_recap
-        send_crawl_recap(search_id)
-    except Exception as e:
-        logger.error(f"Failed to send post-crawl email: {e}")
-
 
 def _get_crawler_times() -> str:
     """Read crawler_times from database, default '07:00,22:00'."""

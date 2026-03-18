@@ -305,7 +305,20 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             await loadSearchesSettings();
-            loadSearches();
+            // Check for deep link ?search_id=123
+            const params = new URLSearchParams(window.location.search);
+            const deepLinkId = params.get('search_id');
+            if (deepLinkId) {
+                expandedSearchId = parseInt(deepLinkId, 10);
+            }
+            await loadSearches();
+            // Scroll to expanded row if deep-linked
+            if (deepLinkId) {
+                setTimeout(() => {
+                    const expandedRow = document.querySelector('.search-expand-content');
+                    if (expandedRow) expandedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 200);
+            }
             loadCrawlerStatus();
         });
     </script>

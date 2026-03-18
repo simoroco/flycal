@@ -1,5 +1,6 @@
 import json
 import logging
+import socket
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -7,6 +8,20 @@ from email.mime.text import MIMEText
 from database import SessionLocal, Setting, Search, Flight, Airline
 
 logger = logging.getLogger("flycal.email")
+
+DEFAULT_SERVER_IP = "192.168.1.50"
+
+
+def _get_server_ip():
+    """Get the server's LAN IP address, fallback to default."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return DEFAULT_SERVER_IP
 
 
 def _get_settings():
@@ -178,7 +193,7 @@ def send_crawl_recap(search_id: int):
                 <h2 style="color: #6c63ff;">Top 3 — Meilleures combinaisons (score vert)</h2>
                 <ul>{top_green_html if top_green_html else "<li>Aucune combinaison optimale trouvée</li>"}</ul>
                 <hr style="border-color: rgba(255,255,255,0.1);">
-                <p><a href="https://localhost:4444" style="color: #6c63ff;">Ouvrir FlyCal →</a></p>
+                <p><a href="http://{_get_server_ip()}:4444/history.html?search_id={search_id}" style="color: #6c63ff;">Voir les résultats sur FlyCal →</a></p>
             </div>
         </body>
         </html>
