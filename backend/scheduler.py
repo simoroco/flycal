@@ -9,7 +9,8 @@ import pytz
 logger = logging.getLogger("flycal.scheduler")
 
 _scheduler: AsyncIOScheduler = None
-JOB_ID = "flycal_crawler"
+JOB_ID_1 = "flycal_crawler_1"
+JOB_ID_2 = "flycal_crawler_2"
 TZ = pytz.timezone("Europe/Paris")
 
 
@@ -51,75 +52,91 @@ async def _scheduled_crawl():
     await _run_scraping(search_id, triggered_by="auto")
 
 
-def _get_crawler_times() -> str:
-    """Read crawler_times from database, default '07:00,22:00'."""
+def _parse_times() -> list:
+    """Parse crawler_times from DB into list of (hour, minute) tuples."""
     try:
         from database import SessionLocal, Setting
         db = SessionLocal()
         try:
             row = db.query(Setting).filter(Setting.key == "crawler_times").first()
-            return row.value if row and row.value else "07:00,22:00"
+            times_str = row.value if row and row.value else "07:00"
         finally:
             db.close()
     except Exception:
-        return "07:00,22:00"
-
-
-def _build_trigger(times_str: str = None):
-    """Build CronTrigger from times string like '07:00,22:00' or '07:00'."""
-    if not times_str:
-        times_str = _get_crawler_times()
+        times_str = "07:00"
 
     parts = [t.strip() for t in times_str.split(",") if t.strip()]
-    hours = []
-    minutes = []
+    result = []
     for part in parts:
         try:
             h, m = part.split(":")
-            hours.append(int(h))
-            minutes.append(int(m))
+            result.append((int(h), int(m)))
         except (ValueError, IndexError):
-            hours.append(7)
-            minutes.append(0)
+            result.append((7, 0))
+    return result
 
-    if not hours:
-        return CronTrigger(hour="7,22", minute=0, timezone=TZ)
 
-    # If all minutes are the same, use simple cron
-    if len(set(minutes)) == 1:
-        hour_str = ",".join(str(h) for h in hours)
-        return CronTrigger(hour=hour_str, minute=minutes[0], timezone=TZ)
+def _apply_jobs(times: list):
+    """Apply job configuration: create/update/remove jobs based on times list."""
+    global _scheduler
+    if not _scheduler:
+        return
+
+    # Job 1 — always present if times has at least 1 entry
+    if len(times) >= 1:
+        h, m = times[0]
+        _scheduler.add_job(
+            _scheduled_crawl,
+            CronTrigger(hour=h, minute=m, timezone=TZ),
+            id=JOB_ID_1,
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+        logger.info(f"Job #1 set to {h:02d}:{m:02d}")
     else:
-        # Multiple different minutes - use first time's minute and all hours
-        # (APScheduler cron doesn't support per-hour minutes, so approximate)
-        hour_str = ",".join(str(h) for h in hours)
-        return CronTrigger(hour=hour_str, minute=minutes[0], timezone=TZ)
+        if _scheduler.get_job(JOB_ID_1):
+            _scheduler.remove_job(JOB_ID_1)
+
+    # Job 2 — only if times has 2 entries
+    if len(times) >= 2:
+        h, m = times[1]
+        _scheduler.add_job(
+            _scheduled_crawl,
+            CronTrigger(hour=h, minute=m, timezone=TZ),
+            id=JOB_ID_2,
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+        logger.info(f"Job #2 set to {h:02d}:{m:02d}")
+    else:
+        if _scheduler.get_job(JOB_ID_2):
+            _scheduler.remove_job(JOB_ID_2)
 
 
 def init_scheduler():
     global _scheduler
     _scheduler = AsyncIOScheduler(timezone=TZ)
 
-    times_str = _get_crawler_times()
-    _scheduler.add_job(
-        _scheduled_crawl,
-        _build_trigger(times_str),
-        id=JOB_ID,
-        replace_existing=True,
-        misfire_grace_time=3600,
-    )
+    times = _parse_times()
+    _apply_jobs(times)
 
     _scheduler.start()
-    logger.info(f"APScheduler started with schedule: {times_str} Europe/Paris")
+    times_desc = ", ".join(f"{h:02d}:{m:02d}" for h, m in times)
+    logger.info(f"APScheduler started with schedule: {times_desc} Europe/Paris")
 
 
 def get_next_run_time() -> str:
     global _scheduler
     if not _scheduler:
         return None
-    job = _scheduler.get_job(JOB_ID)
-    if job and job.next_run_time:
-        return job.next_run_time.isoformat()
+    # Return the earliest next run across both jobs
+    next_times = []
+    for jid in (JOB_ID_1, JOB_ID_2):
+        job = _scheduler.get_job(jid)
+        if job and job.next_run_time:
+            next_times.append(job.next_run_time)
+    if next_times:
+        return min(next_times).isoformat()
     return None
 
 
@@ -127,20 +144,16 @@ def update_scheduler_state(enabled: bool):
     global _scheduler
     if not _scheduler:
         return
-    job = _scheduler.get_job(JOB_ID)
     if enabled:
-        times_str = _get_crawler_times()
-        _scheduler.add_job(
-            _scheduled_crawl,
-            _build_trigger(times_str),
-            id=JOB_ID,
-            replace_existing=True,
-            misfire_grace_time=3600,
-        )
-        logger.info(f"Scheduler job enabled ({times_str})")
-    elif not enabled and job:
-        _scheduler.remove_job(JOB_ID)
-        logger.info("Scheduler job removed (disabled)")
+        times = _parse_times()
+        _apply_jobs(times)
+        times_desc = ", ".join(f"{h:02d}:{m:02d}" for h, m in times)
+        logger.info(f"Scheduler jobs enabled ({times_desc})")
+    else:
+        for jid in (JOB_ID_1, JOB_ID_2):
+            if _scheduler.get_job(jid):
+                _scheduler.remove_job(jid)
+        logger.info("Scheduler jobs removed (disabled)")
     logger.info(f"Scheduler state updated: enabled={enabled}")
 
 
@@ -149,13 +162,16 @@ def update_schedule_times(times_str: str):
     global _scheduler
     if not _scheduler:
         return
-    job = _scheduler.get_job(JOB_ID)
-    if job:
-        _scheduler.add_job(
-            _scheduled_crawl,
-            _build_trigger(times_str),
-            id=JOB_ID,
-            replace_existing=True,
-            misfire_grace_time=3600,
-        )
-        logger.info(f"Scheduler times updated to: {times_str}")
+
+    parts = [t.strip() for t in times_str.split(",") if t.strip()]
+    times = []
+    for part in parts:
+        try:
+            h, m = part.split(":")
+            times.append((int(h), int(m)))
+        except (ValueError, IndexError):
+            times.append((7, 0))
+
+    _apply_jobs(times)
+    times_desc = ", ".join(f"{h:02d}:{m:02d}" for h, m in times)
+    logger.info(f"Scheduler times updated to: {times_desc}")

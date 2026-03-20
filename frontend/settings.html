@@ -114,7 +114,7 @@
                     <input type="email" id="smtpTo" class="input-field" placeholder="dest@email.com">
                 </div>
                 <div class="form-row">
-                    <label>Send email after each crawl</label>
+                    <label>Send email with results after each scan</label>
                     <div class="toggle-switch" id="emailToggle" onclick="toggleEmail()">
                         <div class="toggle-slider"></div>
                     </div>
@@ -125,6 +125,19 @@
                 <button class="btn-sm btn-accent" onclick="testSmtp()">Test SMTP</button>
             </div>
             <p id="smtpTestResult" class="text-muted" style="margin-top:6px"></p>
+        </section>
+
+        <section class="settings-section glass-card">
+            <h2>Data Export / Import</h2>
+            <p class="text-muted" style="margin-bottom:10px">Export or import all settings, airlines, search history and flight data (CSV with ";" separator).</p>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <button class="btn-sm btn-accent" onclick="exportData()">Export CSV</button>
+                <label class="btn-sm btn-primary" style="cursor:pointer">
+                    Import CSV
+                    <input type="file" accept=".csv" style="display:none" onchange="importData(this)">
+                </label>
+                <span id="importResult" class="text-muted" style="font-size:0.8rem"></span>
+            </div>
         </section>
 
         <div class="version-footer">

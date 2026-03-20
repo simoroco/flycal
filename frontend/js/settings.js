@@ -55,10 +55,28 @@ async function loadAllSettings() {
 }
 
 function toggleSecondCrawlTime() {
+    const crawlerToggle = document.getElementById('crawlerToggle');
+    if (!crawlerToggle.classList.contains('active')) return; // Run #2 requires crawler enabled
     const toggle = document.getElementById('crawlerTime2Toggle');
     const input = document.getElementById('crawlerTime2');
     toggle.classList.toggle('active');
     input.disabled = !toggle.classList.contains('active');
+}
+
+function updateRun2State() {
+    const crawlerEnabled = document.getElementById('crawlerToggle').classList.contains('active');
+    const toggle2 = document.getElementById('crawlerTime2Toggle');
+    const input2 = document.getElementById('crawlerTime2');
+    if (!crawlerEnabled) {
+        toggle2.classList.remove('active');
+        toggle2.style.opacity = '0.4';
+        toggle2.style.pointerEvents = 'none';
+        input2.disabled = true;
+    } else {
+        toggle2.style.opacity = '1';
+        toggle2.style.pointerEvents = 'auto';
+        input2.disabled = !toggle2.classList.contains('active');
+    }
 }
 
 async function saveCrawlerSchedule() {
@@ -317,6 +335,8 @@ async function loadCrawlerInfo() {
         nextRun.textContent = status.next_run
             ? new Date(status.next_run).toLocaleString('en-US')
             : '—';
+
+        updateRun2State();
     } catch (e) {
         console.error('Failed to load crawler info:', e);
     }
@@ -419,6 +439,39 @@ async function testSmtp() {
         resultEl.textContent = 'Failed: ' + e.message;
         resultEl.style.color = 'var(--red)';
     }
+}
+
+function exportData() {
+    window.location.href = '/api/settings/export';
+}
+
+async function importData(input) {
+    if (!input.files || !input.files[0]) return;
+    const resultEl = document.getElementById('importResult');
+    resultEl.textContent = 'Importing...';
+    resultEl.style.color = 'var(--text-muted)';
+
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+
+    try {
+        const resp = await fetch('/api/settings/import', { method: 'POST', body: formData });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+            throw new Error(err.detail || resp.statusText);
+        }
+        const data = await resp.json();
+        const counts = Object.entries(data.imported || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+        resultEl.textContent = `Import complete (${counts})`;
+        resultEl.style.color = 'var(--green)';
+        Toast.success('Import successful! Reloading...');
+        setTimeout(() => location.reload(), 1500);
+    } catch (e) {
+        resultEl.textContent = 'Import failed: ' + e.message;
+        resultEl.style.color = 'var(--red)';
+        Toast.error('Import failed: ' + e.message);
+    }
+    input.value = '';
 }
 
 document.addEventListener('DOMContentLoaded', initSettings);
