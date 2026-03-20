@@ -371,11 +371,45 @@ async def import_data(file: UploadFile = File(...), db: Session = Depends(get_db
 
 @router.post("/reset")
 def reset_database(db: Session = Depends(get_db)):
-    """Delete all searches, flights, price history, price tracker, and crawler logs. Keep settings and airlines."""
+    """Delete all data and reset all settings to defaults. Keep airlines."""
+    import json as _json
+    # Delete all transactional data
     db.query(PriceHistory).delete()
     db.query(Flight).delete()
     db.query(CrawlerLog).delete()
     db.query(PriceTracker).delete()
     db.query(Search).delete()
+
+    # Reset all settings to defaults
+    default_settings = {
+        "smtp_host": "",
+        "smtp_port": "587",
+        "smtp_user": "",
+        "smtp_password": "",
+        "smtp_to": "",
+        "smtp_send_enabled": "false",
+        "crawler_enabled": "false",
+        "crawler_interval": "60",
+        "crawler_search_id": "",
+        "crawler_started_at": "",
+        "crawler_time": "07:00",
+        "server_hostname": "192.168.1.50",
+        "ideal_price": "40",
+        "time_slots": _json.dumps([
+            {"label": "Comfortable", "start": "10:00", "end": "18:00", "color": "green"},
+            {"label": "Acceptable", "start": "06:00", "end": "10:00", "color": "orange"},
+            {"label": "Difficult", "start": "00:00", "end": "06:00", "color": "red"},
+            {"label": "Late", "start": "18:00", "end": "00:00", "color": "orange"},
+        ]),
+    }
+    for key, value in default_settings.items():
+        existing = db.query(Setting).filter(Setting.key == key).first()
+        if existing:
+            existing.value = value
+        else:
+            db.add(Setting(key=key, value=value))
+    # Delete any settings not in defaults
+    db.query(Setting).filter(~Setting.key.in_(default_settings.keys())).delete(synchronize_session=False)
+
     db.commit()
-    return {"ok": True, "message": "Database reset complete. Settings and airlines preserved."}
+    return {"ok": True, "message": "Database reset complete. All settings restored to defaults. Airlines preserved."}

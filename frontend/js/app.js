@@ -210,7 +210,8 @@ async function checkForBackgroundSearch() {
 
                 // Resume timer from actual search start time
                 if (status.last_run.started_at) {
-                    const serverStart = new Date(status.last_run.started_at).getTime();
+                    const startedAtStr = status.last_run.started_at.endsWith('Z') ? status.last_run.started_at : status.last_run.started_at + 'Z';
+                    const serverStart = new Date(startedAtStr).getTime();
                     searchStartTime = serverStart;
                     const timerEl = document.getElementById('searchTimer');
                     const estimateEl = document.getElementById('searchEstimate');
