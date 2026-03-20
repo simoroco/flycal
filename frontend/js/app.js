@@ -426,6 +426,8 @@ function initCityDropdown(inputId, dropdownId) {
             e.preventDefault();
             if (highlightIdx >= 0 && highlightIdx < options.length) {
                 selectCity(options[highlightIdx].dataset.city);
+            } else if (options.length > 0) {
+                selectCity(options[0].dataset.city);
             }
         } else if (e.key === 'Escape') {
             closeDropdown();
