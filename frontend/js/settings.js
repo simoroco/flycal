@@ -23,6 +23,7 @@ async function loadAllSettings() {
         document.getElementById('smtpUser').value = settingsData.smtp_user || '';
         document.getElementById('smtpPassword').value = settingsData.smtp_password || '';
         document.getElementById('smtpTo').value = settingsData.smtp_to || '';
+        document.getElementById('serverHostname').value = settingsData.server_hostname || '192.168.1.50';
 
         const emailToggle = document.getElementById('emailToggle');
         if (settingsData.smtp_send_enabled === true || settingsData.smtp_send_enabled === 'true') {
@@ -377,6 +378,7 @@ async function saveEmailSettings() {
             smtp_user: document.getElementById('smtpUser').value,
             smtp_password: document.getElementById('smtpPassword').value,
             smtp_to: document.getElementById('smtpTo').value,
+            server_hostname: document.getElementById('serverHostname').value || '192.168.1.50',
             smtp_send_enabled: emailEnabled,
         });
         Toast.success('Email settings saved.');
@@ -433,6 +435,18 @@ async function importData(input) {
         Toast.error('Import failed: ' + e.message);
     }
     input.value = '';
+}
+
+function resetDatabase() {
+    Toast.confirm('WARNING: This will delete ALL data (searches, flights, logs, price history). Settings and airlines will be kept. Continue?', async () => {
+        try {
+            const result = await API.post('/api/settings/reset');
+            Toast.success('Database reset complete. Reloading...');
+            setTimeout(() => location.reload(), 1500);
+        } catch (e) {
+            Toast.error('Reset failed: ' + e.message);
+        }
+    });
 }
 
 document.addEventListener('DOMContentLoaded', initSettings);

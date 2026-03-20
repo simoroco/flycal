@@ -47,6 +47,7 @@
                             <th>Airlines</th>
                             <th>Type</th>
                             <th>Status</th>
+                            <th>Duration</th>
                             <th>Results</th>
                             <th>Min Price</th>
                             <th>Max Price</th>
@@ -71,6 +72,17 @@
         let searchesSettings = null;
         let expandedSearchId = null;
         let selectedSearchIds = new Set();
+
+        function formatDuration(seconds) {
+            if (seconds == null) return '—';
+            if (seconds < 60) return seconds + 's';
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            if (m < 60) return m + 'm ' + (s > 0 ? s + 's' : '');
+            const h = Math.floor(m / 60);
+            const rm = m % 60;
+            return h + 'h ' + (rm > 0 ? rm + 'm' : '');
+        }
 
         async function loadSearchesSettings() {
             try {
@@ -143,6 +155,7 @@
                     <td>${airlinesHtml}</td>
                     <td><span class="type-badge type-${s.triggered_by || 'manual'}">${s.triggered_by === 'auto' ? 'Auto' : 'Manual'}</span></td>
                     <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+                    <td><span class="duration-badge">${formatDuration(s.duration_seconds)}</span></td>
                     <td>${s.flight_count || 0} flights</td>
                     <td>${min != null ? Math.round(min) + '€' : '—'}</td>
                     <td>${max != null ? Math.round(max) + '€' : '—'}</td>
@@ -154,7 +167,7 @@
                 if (isExpanded && s.flights && s.flights.length > 0) {
                     const outbound = s.flights.filter(f => f.direction === 'outbound');
                     const ret = s.flights.filter(f => f.direction === 'return');
-                    html += `<tr><td colspan="11" style="padding:0">
+                    html += `<tr><td colspan="12" style="padding:0">
                         <div class="search-expand-content">
                             <div class="search-expand-flights">
                                 <div class="search-expand-col">
@@ -173,7 +186,7 @@
                         </div>
                     </td></tr>`;
                 } else if (isExpanded) {
-                    html += `<tr><td colspan="11" style="padding:0">
+                    html += `<tr><td colspan="12" style="padding:0">
                         <div class="search-expand-content">
                             <p class="text-muted">No flight results for this search.</p>
                         </div>
@@ -326,6 +339,13 @@
     </script>
 
     <style>
+        /* Full-width history */
+        .page-content { max-width: 100%; padding: 12px; }
+        .glass-card { max-width: 100%; }
+        .table-wrapper { overflow-x: auto; }
+        .data-table { width: 100%; font-size: 0.78rem; }
+        .data-table th, .data-table td { padding: 6px 8px; white-space: nowrap; }
+
         .compact-day-header {
             font-size: 0.65rem;
             font-weight: 600;
@@ -351,6 +371,18 @@
         .type-auto {
             color: var(--accent);
             background: rgba(108, 99, 255, 0.15);
+        }
+        .duration-badge {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .data-table { font-size: 0.68rem; }
+            .data-table th, .data-table td { padding: 4px 4px; }
+            .history-toolbar { flex-direction: column; gap: 8px; }
+            .page-content { padding: 8px; }
         }
     </style>
 </body>

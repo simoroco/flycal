@@ -189,6 +189,7 @@ def init_db():
             "crawler_search_id": "",
             "crawler_started_at": "",
             "crawler_time": "07:00",
+            "server_hostname": "192.168.1.50",
             "ideal_price": "40",
             "time_slots": json.dumps([
                 {"label": "Comfortable", "start": "10:00", "end": "18:00", "color": "green"},

@@ -59,6 +59,7 @@ def _search_to_dict(s):
         "is_last": s.is_last,
         "status": last_log.status if last_log else "unknown",
         "triggered_by": last_log.triggered_by if last_log else "manual",
+        "duration_seconds": int((last_log.ended_at - last_log.started_at).total_seconds()) if last_log and last_log.ended_at and last_log.started_at else None,
         "flight_count": len(s.flights),
         "flights": [_flight_to_dict(f) for f in s.flights],
     }

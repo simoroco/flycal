@@ -5,15 +5,19 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from database import SessionLocal, Setting, Search, Flight, Airline
+from database import SessionLocal, Setting, Search, Flight, Airline, CrawlerLog
 
 logger = logging.getLogger("flycal.email")
 
 DEFAULT_SERVER_IP = "192.168.1.50"
 
 
-def _get_server_ip():
-    """Get the server's LAN IP address, fallback to default."""
+def _get_server_hostname(settings=None):
+    """Get server hostname from settings, fallback to auto-detect, then default."""
+    if settings:
+        hostname = settings.get("server_hostname", "")
+        if hostname:
+            return hostname
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -64,6 +68,12 @@ def send_crawl_recap(search_id: int):
             .filter(Flight.search_id == search_id)
             .all()
         )
+
+        # Determine scan type from crawler log
+        last_log = db.query(CrawlerLog).filter(CrawlerLog.search_id == search_id).order_by(CrawlerLog.started_at.desc()).first()
+        scan_type = last_log.triggered_by if last_log else "manual"
+        scan_type_label = "Automatique" if scan_type == "auto" else "Manuel"
+        server_hostname = _get_server_hostname(settings)
 
         airlines_map = {}
         for f in flights:
@@ -180,10 +190,11 @@ def send_crawl_recap(search_id: int):
         <html>
         <body style="font-family: Arial, sans-serif; background: #1a1a2e; color: #e8e8f0; padding: 20px;">
             <div style="max-width: 600px; margin: 0 auto; background: rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; border: 1px solid rgba(255,255,255,0.1);">
-                <h1 style="color: #6c63ff;">✈ FlyCal — Résumé du crawl</h1>
+                <h1 style="color: #6c63ff;">✈ FlyCal — Résumé du crawl ({scan_type_label})</h1>
                 <p><strong>Trajet:</strong> {search.origin_city} → {search.destination_city}</p>
                 <p><strong>Dates:</strong> {search.date_from} — {search.date_to}</p>
-                <p><strong>Type:</strong> {"Aller-retour" if search.trip_type == "roundtrip" else "Aller simple"}</p>
+                <p><strong>Type de vol:</strong> {"Aller-retour" if search.trip_type == "roundtrip" else "Aller simple"}</p>
+                <p><strong>Scan:</strong> {scan_type_label}</p>
                 <p><strong>Vols directs trouvés:</strong> {len(flights)}</p>
                 <h2 style="color: #6c63ff;">Par compagnie</h2>
                 <ul>{airline_summary}</ul>
@@ -193,14 +204,14 @@ def send_crawl_recap(search_id: int):
                 <h2 style="color: #6c63ff;">Top 3 — Meilleures combinaisons (score vert)</h2>
                 <ul>{top_green_html if top_green_html else "<li>Aucune combinaison optimale trouvée</li>"}</ul>
                 <hr style="border-color: rgba(255,255,255,0.1);">
-                <p><a href="http://{_get_server_ip()}:4444/history.html?search_id={search_id}" style="color: #6c63ff;">Voir les résultats sur FlyCal →</a></p>
+                <p><a href="http://{server_hostname}:4444/history.html?search_id={search_id}" style="color: #6c63ff;">Voir les résultats sur FlyCal →</a></p>
             </div>
         </body>
         </html>
         """
 
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"FlyCal — {search.origin_city} → {search.destination_city} ({len(flights)} vols)"
+        msg["Subject"] = f"FlyCal [{scan_type_label}] — {search.origin_city} → {search.destination_city} ({len(flights)} vols)"
         msg["From"] = user
         msg["To"] = to_email
         msg.attach(MIMEText(html, "html"))

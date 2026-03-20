@@ -130,6 +130,15 @@ def export_data(db: Session = Depends(get_db)):
             f.scraped_at.isoformat() if f.scraped_at else "",
         ])
 
+    # --- Price History ---
+    output.write("\n[PRICE_HISTORY]\n")
+    writer.writerow(["id", "flight_id", "price", "recorded_at"])
+    for ph in db.query(PriceHistory).order_by(PriceHistory.id).all():
+        writer.writerow([
+            ph.id, ph.flight_id, ph.price,
+            ph.recorded_at.isoformat() if ph.recorded_at else "",
+        ])
+
     # --- Price Tracker ---
     output.write("\n[PRICE_TRACKER]\n")
     writer.writerow(["id", "airline_id", "direction", "flight_date", "departure_time", "origin_airport", "destination_airport", "price", "recorded_at"])
@@ -283,6 +292,28 @@ async def import_data(file: UploadFile = File(...), db: Session = Depends(get_db
         db.commit()
         imported["flights"] = count
 
+    # --- Price History ---
+    if "PRICE_HISTORY" in section_rows:
+        rows = list(csv.reader(section_rows["PRICE_HISTORY"], delimiter=";"))
+        if rows and rows[0][0] == "id":
+            rows = rows[1:]
+        count = 0
+        for row in rows:
+            if len(row) >= 4:
+                ph_id = int(row[0])
+                existing = db.query(PriceHistory).filter(PriceHistory.id == ph_id).first()
+                if not existing:
+                    ph = PriceHistory(
+                        id=ph_id,
+                        flight_id=int(row[1]),
+                        price=float(row[2]),
+                        recorded_at=datetime.fromisoformat(row[3]) if row[3] else None,
+                    )
+                    db.add(ph)
+                    count += 1
+        db.commit()
+        imported["price_history"] = count
+
     # --- Price Tracker ---
     if "PRICE_TRACKER" in section_rows:
         rows = list(csv.reader(section_rows["PRICE_TRACKER"], delimiter=";"))
@@ -336,3 +367,15 @@ async def import_data(file: UploadFile = File(...), db: Session = Depends(get_db
         imported["crawler_logs"] = count
 
     return {"ok": True, "imported": imported}
+
+
+@router.post("/reset")
+def reset_database(db: Session = Depends(get_db)):
+    """Delete all searches, flights, price history, price tracker, and crawler logs. Keep settings and airlines."""
+    db.query(PriceHistory).delete()
+    db.query(Flight).delete()
+    db.query(CrawlerLog).delete()
+    db.query(PriceTracker).delete()
+    db.query(Search).delete()
+    db.commit()
+    return {"ok": True, "message": "Database reset complete. Settings and airlines preserved."}

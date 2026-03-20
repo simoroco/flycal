@@ -49,8 +49,6 @@
                         <div class="toggle-slider"></div>
                     </div>
                     <span id="crawlerStatus" class="status-text">Inactive</span>
-                </div>
-                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
                     <span style="font-size:0.78rem;font-weight:600;color:var(--text-muted)">Daily scan at</span>
                     <input type="time" id="crawlerTime" value="07:00" class="compact-input" style="width:110px" onclick="if(this.showPicker)this.showPicker()">
                     <button class="btn-sm btn-accent" onclick="saveCrawlerSchedule()">Save</button>
@@ -106,6 +104,10 @@
                     <input type="email" id="smtpTo" class="input-field" placeholder="dest@email.com">
                 </div>
                 <div class="form-row">
+                    <label>Server hostname/IP (for email links)</label>
+                    <input type="text" id="serverHostname" class="input-field" placeholder="192.168.1.50">
+                </div>
+                <div class="form-row">
                     <label>Send email with results after each scan</label>
                     <div class="toggle-switch" id="emailToggle" onclick="toggleEmail()">
                         <div class="toggle-slider"></div>
@@ -128,6 +130,7 @@
                     Import CSV
                     <input type="file" accept=".csv" style="display:none" onchange="importData(this)">
                 </label>
+                <button class="btn-sm btn-danger" onclick="resetDatabase()">Reset Database</button>
                 <span id="importResult" class="text-muted" style="font-size:0.8rem"></span>
             </div>
         </section>
