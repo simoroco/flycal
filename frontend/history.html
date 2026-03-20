@@ -45,6 +45,7 @@
                             <th>Route</th>
                             <th>Date Range</th>
                             <th>Airlines</th>
+                            <th>Type</th>
                             <th>Status</th>
                             <th>Results</th>
                             <th>Min Price</th>
@@ -75,7 +76,7 @@
             try {
                 searchesSettings = await API.getSettings();
             } catch (e) {
-                searchesSettings = { ideal_price: 100, time_slots: [] };
+                searchesSettings = { ideal_price: 40, time_slots: [] };
             }
         }
 
@@ -140,6 +141,7 @@
                     <td><strong>${(s.origin_city || '').toUpperCase()}</strong> → <strong>${(s.destination_city || '').toUpperCase()}</strong></td>
                     <td>${s.date_from} → ${s.date_to}</td>
                     <td>${airlinesHtml}</td>
+                    <td><span class="type-badge type-${s.triggered_by || 'manual'}">${s.triggered_by === 'auto' ? 'Auto' : 'Manual'}</span></td>
                     <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
                     <td>${s.flight_count || 0} flights</td>
                     <td>${min != null ? Math.round(min) + '€' : '—'}</td>
@@ -152,7 +154,7 @@
                 if (isExpanded && s.flights && s.flights.length > 0) {
                     const outbound = s.flights.filter(f => f.direction === 'outbound');
                     const ret = s.flights.filter(f => f.direction === 'return');
-                    html += `<tr><td colspan="10" style="padding:0">
+                    html += `<tr><td colspan="11" style="padding:0">
                         <div class="search-expand-content">
                             <div class="search-expand-flights">
                                 <div class="search-expand-col">
@@ -171,7 +173,7 @@
                         </div>
                     </td></tr>`;
                 } else if (isExpanded) {
-                    html += `<tr><td colspan="10" style="padding:0">
+                    html += `<tr><td colspan="11" style="padding:0">
                         <div class="search-expand-content">
                             <p class="text-muted">No flight results for this search.</p>
                         </div>
@@ -334,6 +336,21 @@
         .search-expand-compact {
             max-height: 400px;
             overflow-y: auto;
+        }
+        .type-badge {
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .type-manual {
+            color: var(--text-muted);
+            background: rgba(255,255,255,0.05);
+        }
+        .type-auto {
+            color: var(--accent);
+            background: rgba(108, 99, 255, 0.15);
         }
     </style>
 </body>

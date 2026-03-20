@@ -2,14 +2,14 @@ import csv
 import io
 import json
 import smtplib
-from datetime import datetime
+from datetime import datetime, date as date_type
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 
-from database import Setting, Search, Flight, Airline, CrawlerLog, PriceTracker, get_db
+from database import Setting, Search, Flight, Airline, CrawlerLog, PriceTracker, PriceHistory, get_db
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -225,5 +225,114 @@ async def import_data(file: UploadFile = File(...), db: Session = Depends(get_db
                 count += 1
         db.commit()
         imported["airlines"] = count
+
+    # --- Searches ---
+    if "SEARCHES" in section_rows:
+        rows = list(csv.reader(section_rows["SEARCHES"], delimiter=";"))
+        if rows and rows[0][0] == "id":
+            rows = rows[1:]
+        count = 0
+        for row in rows:
+            if len(row) >= 9:
+                search_id = int(row[0])
+                existing = db.query(Search).filter(Search.id == search_id).first()
+                if not existing:
+                    s = Search(
+                        id=search_id,
+                        origin_city=row[1],
+                        destination_city=row[2],
+                        date_from=date_type.fromisoformat(row[3]) if row[3] else None,
+                        date_to=date_type.fromisoformat(row[4]) if row[4] else None,
+                        trip_type=row[5],
+                        airlines=row[6],
+                        created_at=datetime.fromisoformat(row[7]) if row[7] else None,
+                        is_last=row[8] == "True",
+                    )
+                    db.add(s)
+                    count += 1
+        db.commit()
+        imported["searches"] = count
+
+    # --- Flights ---
+    if "FLIGHTS" in section_rows:
+        rows = list(csv.reader(section_rows["FLIGHTS"], delimiter=";"))
+        if rows and rows[0][0] == "id":
+            rows = rows[1:]
+        count = 0
+        for row in rows:
+            if len(row) >= 12:
+                flight_id = int(row[0])
+                existing = db.query(Flight).filter(Flight.id == flight_id).first()
+                if not existing:
+                    f = Flight(
+                        id=flight_id,
+                        search_id=int(row[1]),
+                        airline_id=int(row[2]),
+                        direction=row[3],
+                        flight_date=date_type.fromisoformat(row[4]) if row[4] else None,
+                        departure_time=row[5],
+                        arrival_time=row[6],
+                        origin_airport=row[7],
+                        destination_airport=row[8],
+                        price=float(row[9]),
+                        currency=row[10],
+                        scraped_at=datetime.fromisoformat(row[11]) if row[11] else None,
+                    )
+                    db.add(f)
+                    count += 1
+        db.commit()
+        imported["flights"] = count
+
+    # --- Price Tracker ---
+    if "PRICE_TRACKER" in section_rows:
+        rows = list(csv.reader(section_rows["PRICE_TRACKER"], delimiter=";"))
+        if rows and rows[0][0] == "id":
+            rows = rows[1:]
+        count = 0
+        for row in rows:
+            if len(row) >= 9:
+                pt_id = int(row[0])
+                existing = db.query(PriceTracker).filter(PriceTracker.id == pt_id).first()
+                if not existing:
+                    pt = PriceTracker(
+                        id=pt_id,
+                        airline_id=int(row[1]),
+                        direction=row[2],
+                        flight_date=date_type.fromisoformat(row[3]) if row[3] else None,
+                        departure_time=row[4],
+                        origin_airport=row[5],
+                        destination_airport=row[6],
+                        price=float(row[7]),
+                        recorded_at=datetime.fromisoformat(row[8]) if row[8] else None,
+                    )
+                    db.add(pt)
+                    count += 1
+        db.commit()
+        imported["price_tracker"] = count
+
+    # --- Crawler Logs ---
+    if "CRAWLER_LOGS" in section_rows:
+        rows = list(csv.reader(section_rows["CRAWLER_LOGS"], delimiter=";"))
+        if rows and rows[0][0] == "id":
+            rows = rows[1:]
+        count = 0
+        for row in rows:
+            if len(row) >= 7:
+                log_id = int(row[0])
+                existing = db.query(CrawlerLog).filter(CrawlerLog.id == log_id).first()
+                if not existing:
+                    log = CrawlerLog(
+                        id=log_id,
+                        search_id=int(row[1]) if row[1] else None,
+                        triggered_by=row[2],
+                        status=row[3],
+                        error_msg=row[4] or None,
+                        started_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                        ended_at=datetime.fromisoformat(row[6]) if row[6] else None,
+                    )
+                    db.add(log)
+                    count += 1
+        db.commit()
+        imported["crawler_logs"] = count
 
     return {"ok": True, "imported": imported}

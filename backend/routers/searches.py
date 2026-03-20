@@ -58,6 +58,7 @@ def _search_to_dict(s):
         "created_at": s.created_at.isoformat() if s.created_at else "",
         "is_last": s.is_last,
         "status": last_log.status if last_log else "unknown",
+        "triggered_by": last_log.triggered_by if last_log else "manual",
         "flight_count": len(s.flights),
         "flights": [_flight_to_dict(f) for f in s.flights],
     }

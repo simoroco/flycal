@@ -79,7 +79,7 @@ def send_crawl_recap(search_id: int):
         top_outbound = sorted(outbound_flights, key=lambda f: f.price)[:3]
         top_return = sorted(return_flights, key=lambda f: f.price)[:3]
 
-        ideal_price = float(settings.get("ideal_price", "100"))
+        ideal_price = float(settings.get("ideal_price", "40"))
         time_slots = []
         try:
             time_slots = json.loads(settings.get("time_slots", "[]"))

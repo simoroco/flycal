@@ -131,7 +131,7 @@ async function loadSettingsForApp() {
     try {
         appSettings = await API.getSettings();
     } catch (e) {
-        appSettings = { ideal_price: 100, time_slots: [] };
+        appSettings = { ideal_price: 40, time_slots: [] };
     }
 }
 

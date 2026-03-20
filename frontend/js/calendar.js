@@ -8,7 +8,7 @@ async function loadSettings() {
             _settings = await API.getSettings();
         } catch (e) {
             _settings = {
-                ideal_price: 100,
+                ideal_price: 40,
                 time_slots: [
                     { label: 'Comfortable', start: '10:00', end: '18:00', color: 'green' },
                     { label: 'Acceptable', start: '06:00', end: '10:00', color: 'orange' },
@@ -46,7 +46,7 @@ function getTimeColor(departureTime, timeSlots) {
 }
 
 function getPriceColor(price, idealPrice) {
-    const ip = parseFloat(idealPrice) || 100;
+    const ip = parseFloat(idealPrice) || 40;
     if (price <= ip * 0.8) return 'green';
     if (price <= ip * 1.2) return 'orange';
     return 'red';
@@ -64,7 +64,7 @@ function compositeColor(c1, c2) {
 
 function getFlightColor(flight, settings) {
     const timeSlots = settings.time_slots || [];
-    const idealPrice = settings.ideal_price || 100;
+    const idealPrice = settings.ideal_price || 40;
     const tc = getTimeColor(flight.departure_time, timeSlots);
     const pc = getPriceColor(flight.price, idealPrice);
     return compositeColor(tc, pc);

@@ -34,24 +34,22 @@
             <h2>Reference Price</h2>
             <div class="form-row">
                 <label>Ideal price (€)</label>
-                <input type="number" id="idealPrice" min="0" step="1" value="100" class="input-field input-sm">
+                <input type="number" id="idealPrice" min="0" step="1" value="40" class="input-field input-sm">
                 <button class="btn-sm btn-accent" onclick="saveIdealPrice()">Save</button>
             </div>
         </section>
 
         <section class="settings-section glass-card">
-            <h2>Stay Updated with Automatic Crawler</h2>
-            <p class="text-muted" style="margin-bottom:10px">When enabled, the crawler runs once daily at the scheduled time using the last search parameters.</p>
-
-            <div class="form-row" style="align-items:center;gap:12px">
-                <label>Enable daily scan</label>
-                <div class="toggle-switch" id="crawlerToggle" onclick="toggleCrawler()">
-                    <div class="toggle-slider"></div>
-                </div>
-                <span id="crawlerStatus" class="status-text">Inactive</span>
-            </div>
+            <h2>Stay Updated</h2>
 
             <div style="margin-top:12px;padding:10px;background:rgba(255,255,255,0.02);border-radius:var(--radius-sm);border:1px solid var(--glass-border)">
+                <div class="form-row" style="align-items:center;gap:12px">
+                    <label>Enable automatic Crawler daily scan using the last search parameters :</label>
+                    <div class="toggle-switch" id="crawlerToggle" onclick="toggleCrawler()">
+                        <div class="toggle-slider"></div>
+                    </div>
+                    <span id="crawlerStatus" class="status-text">Inactive</span>
+                </div>
                 <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
                     <span style="font-size:0.78rem;font-weight:600;color:var(--text-muted)">Daily scan at</span>
                     <input type="time" id="crawlerTime" value="07:00" class="compact-input" style="width:110px" onclick="if(this.showPicker)this.showPicker()">

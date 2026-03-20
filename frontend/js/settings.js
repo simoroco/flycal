@@ -17,7 +17,7 @@ async function loadAllSettings() {
     try {
         settingsData = await API.getSettings();
 
-        document.getElementById('idealPrice').value = settingsData.ideal_price || 100;
+        document.getElementById('idealPrice').value = settingsData.ideal_price || 40;
         document.getElementById('smtpHost').value = settingsData.smtp_host || '';
         document.getElementById('smtpPort').value = settingsData.smtp_port || 587;
         document.getElementById('smtpUser').value = settingsData.smtp_user || '';
@@ -175,7 +175,7 @@ async function addAirline() {
 }
 
 async function saveIdealPrice() {
-    const val = parseInt(document.getElementById('idealPrice').value) || 100;
+    const val = parseInt(document.getElementById('idealPrice').value) || 40;
     try {
         await API.updateSettings({ ideal_price: val });
         Toast.success('Reference price saved.');
