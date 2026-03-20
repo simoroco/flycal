@@ -347,11 +347,13 @@ function initCityDropdown(inputId, dropdownId) {
         // Recent cities
         const recents = getRecentCities();
         if (!f && recents.length > 0) {
+            html += '<div class="city-group">';
             html += '<div class="city-group-label recent-label">Recent</div>';
             for (const city of recents) {
                 const country = CITY_COUNTRY_MAP[city] || '';
                 html += `<div class="city-option" data-city="${city}"><span class="city-name">${city}</span><span class="city-country">${country}</span></div>`;
             }
+            html += '</div>';
         }
 
         // Countries
@@ -360,10 +362,12 @@ function initCityDropdown(inputId, dropdownId) {
             const filtered = f ? cities.filter(c => c.includes(f) || country.toUpperCase().includes(f)) : cities;
             if (filtered.length === 0) continue;
             hasResults = true;
+            html += '<div class="city-group">';
             html += `<div class="city-group-label">${country}</div>`;
             for (const city of filtered) {
                 html += `<div class="city-option" data-city="${city}"><span class="city-name">${city}</span></div>`;
             }
+            html += '</div>';
         }
 
         if (f && !hasResults) {
