@@ -204,6 +204,23 @@ function toggleAirline(el) {
     el.classList.toggle('active');
 }
 
+function toggleAllAirlines() {
+    const toggles = document.querySelectorAll('.airline-toggle');
+    const allActive = Array.from(toggles).every(t => t.classList.contains('active'));
+    toggles.forEach(t => {
+        if (allActive) t.classList.remove('active');
+        else t.classList.add('active');
+    });
+}
+
+function swapCities() {
+    const originEl = document.getElementById('originCity');
+    const destEl = document.getElementById('destinationCity');
+    const tmp = originEl.value;
+    originEl.value = destEl.value;
+    destEl.value = tmp;
+}
+
 function getSelectedAirlines() {
     const toggles = document.querySelectorAll('.airline-toggle.active');
     const names = [];
@@ -360,6 +377,11 @@ async function launchSearch() {
 
     if (!origin || !destination || !dateFrom || !dateTo) {
         Toast.warning('Please fill in all search fields.');
+        return;
+    }
+
+    if (origin === destination) {
+        Toast.warning('Origin and destination cities must be different.');
         return;
     }
 

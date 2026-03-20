@@ -390,6 +390,8 @@ async def cancel_search(db: Session = Depends(get_db)):
 
 @router.post("/search")
 async def create_search(data: SearchRequest, db: Session = Depends(get_db)):
+    if data.origin_city.strip().upper() == data.destination_city.strip().upper():
+        raise HTTPException(status_code=400, detail="Origin and destination cities must be different.")
     db.query(Search).filter(Search.is_last == True).update({"is_last": False})
     db.commit()
 

@@ -33,7 +33,7 @@
             <div class="search-row-compact">
                 <span class="search-label">WHERE:</span>
                 <input type="text" id="originCity" placeholder="From" autocomplete="off" class="compact-input city-input" list="cityList">
-                <span class="compact-arrow">→</span>
+                <span class="compact-arrow swap-arrow" onclick="swapCities()" title="Swap cities">→</span>
                 <input type="text" id="destinationCity" placeholder="To" autocomplete="off" class="compact-input city-input" list="cityList">
                 <span class="search-divider"></span>
                 <span class="search-label">DATES:</span>
@@ -42,6 +42,7 @@
                 <input type="date" id="dateTo" class="compact-input date-input">
                 <span class="search-divider"></span>
                 <span class="search-label">AIRLINES:</span>
+                <div class="airline-toggle-all" onclick="toggleAllAirlines()" title="Select / Deselect all">ALL</div>
                 <div class="airline-toggles" id="airlineToggles"></div>
                 <button class="btn-search" id="btnSearch" onclick="launchSearch()">
                     <span id="searchBtnText">SCAN</span>

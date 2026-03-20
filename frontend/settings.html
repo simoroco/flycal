@@ -104,7 +104,7 @@
                     <input type="email" id="smtpTo" class="input-field" placeholder="dest@email.com">
                 </div>
                 <div class="form-row">
-                    <label>Server hostname/IP (for email links)</label>
+                    <label>Server hostname/IP</label>
                     <input type="text" id="serverHostname" class="input-field" placeholder="192.168.1.50">
                 </div>
                 <div class="form-row">
@@ -126,17 +126,15 @@
             <p class="text-muted" style="margin-bottom:10px">Export or import all settings, airlines, search history and flight data (CSV with ";" separator).</p>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                 <button class="btn-sm btn-accent" onclick="exportData()">Export CSV</button>
-                <label class="btn-sm btn-primary" style="cursor:pointer">
-                    Import CSV
-                    <input type="file" accept=".csv" style="display:none" onchange="importData(this)">
-                </label>
+                <input type="file" id="importFileInput" accept=".csv" style="display:none" onchange="importData(this)">
+                <button class="btn-sm btn-accent" onclick="document.getElementById('importFileInput').click()">Import CSV</button>
                 <button class="btn-sm btn-danger" onclick="resetDatabase()">Reset Database</button>
                 <span id="importResult" class="text-muted" style="font-size:0.8rem"></span>
             </div>
         </section>
 
         <div class="version-footer">
-            FlyCal v1.5.0 — &copy; 2026 simoroco
+            FlyCal v2.0 — &copy; 2026 simoroco
         </div>
     </main>
 
