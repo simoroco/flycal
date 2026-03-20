@@ -9,8 +9,7 @@ import pytz
 logger = logging.getLogger("flycal.scheduler")
 
 _scheduler: AsyncIOScheduler = None
-JOB_ID_1 = "flycal_crawler_1"
-JOB_ID_2 = "flycal_crawler_2"
+JOB_ID = "flycal_crawler"
 TZ = pytz.timezone("Europe/Paris")
 
 
@@ -52,91 +51,55 @@ async def _scheduled_crawl():
     await _run_scraping(search_id, triggered_by="auto")
 
 
-def _parse_times() -> list:
-    """Parse crawler_times from DB into list of (hour, minute) tuples."""
+def _get_crawler_time() -> str:
+    """Read crawler_time from database, default '07:00'."""
     try:
         from database import SessionLocal, Setting
         db = SessionLocal()
         try:
-            row = db.query(Setting).filter(Setting.key == "crawler_times").first()
-            times_str = row.value if row and row.value else "07:00"
+            row = db.query(Setting).filter(Setting.key == "crawler_time").first()
+            return row.value if row and row.value else "07:00"
         finally:
             db.close()
     except Exception:
-        times_str = "07:00"
-
-    parts = [t.strip() for t in times_str.split(",") if t.strip()]
-    result = []
-    for part in parts:
-        try:
-            h, m = part.split(":")
-            result.append((int(h), int(m)))
-        except (ValueError, IndexError):
-            result.append((7, 0))
-    return result
+        return "07:00"
 
 
-def _apply_jobs(times: list):
-    """Apply job configuration: create/update/remove jobs based on times list."""
-    global _scheduler
-    if not _scheduler:
-        return
-
-    # Job 1 — always present if times has at least 1 entry
-    if len(times) >= 1:
-        h, m = times[0]
-        _scheduler.add_job(
-            _scheduled_crawl,
-            CronTrigger(hour=h, minute=m, timezone=TZ),
-            id=JOB_ID_1,
-            replace_existing=True,
-            misfire_grace_time=3600,
-        )
-        logger.info(f"Job #1 set to {h:02d}:{m:02d}")
-    else:
-        if _scheduler.get_job(JOB_ID_1):
-            _scheduler.remove_job(JOB_ID_1)
-
-    # Job 2 — only if times has 2 entries
-    if len(times) >= 2:
-        h, m = times[1]
-        _scheduler.add_job(
-            _scheduled_crawl,
-            CronTrigger(hour=h, minute=m, timezone=TZ),
-            id=JOB_ID_2,
-            replace_existing=True,
-            misfire_grace_time=3600,
-        )
-        logger.info(f"Job #2 set to {h:02d}:{m:02d}")
-    else:
-        if _scheduler.get_job(JOB_ID_2):
-            _scheduler.remove_job(JOB_ID_2)
+def _build_trigger(time_str: str = None):
+    """Build CronTrigger from a single time string like '07:00'."""
+    if not time_str:
+        time_str = _get_crawler_time()
+    try:
+        h, m = time_str.strip().split(":")
+        return CronTrigger(hour=int(h), minute=int(m), timezone=TZ)
+    except (ValueError, IndexError):
+        return CronTrigger(hour=7, minute=0, timezone=TZ)
 
 
 def init_scheduler():
     global _scheduler
     _scheduler = AsyncIOScheduler(timezone=TZ)
 
-    times = _parse_times()
-    _apply_jobs(times)
+    time_str = _get_crawler_time()
+    _scheduler.add_job(
+        _scheduled_crawl,
+        _build_trigger(time_str),
+        id=JOB_ID,
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
 
     _scheduler.start()
-    times_desc = ", ".join(f"{h:02d}:{m:02d}" for h, m in times)
-    logger.info(f"APScheduler started with schedule: {times_desc} Europe/Paris")
+    logger.info(f"APScheduler started with daily schedule: {time_str} Europe/Paris")
 
 
 def get_next_run_time() -> str:
     global _scheduler
     if not _scheduler:
         return None
-    # Return the earliest next run across both jobs
-    next_times = []
-    for jid in (JOB_ID_1, JOB_ID_2):
-        job = _scheduler.get_job(jid)
-        if job and job.next_run_time:
-            next_times.append(job.next_run_time)
-    if next_times:
-        return min(next_times).isoformat()
+    job = _scheduler.get_job(JOB_ID)
+    if job and job.next_run_time:
+        return job.next_run_time.isoformat()
     return None
 
 
@@ -145,33 +108,32 @@ def update_scheduler_state(enabled: bool):
     if not _scheduler:
         return
     if enabled:
-        times = _parse_times()
-        _apply_jobs(times)
-        times_desc = ", ".join(f"{h:02d}:{m:02d}" for h, m in times)
-        logger.info(f"Scheduler jobs enabled ({times_desc})")
+        time_str = _get_crawler_time()
+        _scheduler.add_job(
+            _scheduled_crawl,
+            _build_trigger(time_str),
+            id=JOB_ID,
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+        logger.info(f"Scheduler job enabled ({time_str})")
     else:
-        for jid in (JOB_ID_1, JOB_ID_2):
-            if _scheduler.get_job(jid):
-                _scheduler.remove_job(jid)
-        logger.info("Scheduler jobs removed (disabled)")
+        if _scheduler.get_job(JOB_ID):
+            _scheduler.remove_job(JOB_ID)
+        logger.info("Scheduler job removed (disabled)")
     logger.info(f"Scheduler state updated: enabled={enabled}")
 
 
-def update_schedule_times(times_str: str):
-    """Update the scheduler with new times (called from API)."""
+def update_schedule_time(time_str: str):
+    """Update the scheduler with a new time (called from API)."""
     global _scheduler
     if not _scheduler:
         return
-
-    parts = [t.strip() for t in times_str.split(",") if t.strip()]
-    times = []
-    for part in parts:
-        try:
-            h, m = part.split(":")
-            times.append((int(h), int(m)))
-        except (ValueError, IndexError):
-            times.append((7, 0))
-
-    _apply_jobs(times)
-    times_desc = ", ".join(f"{h:02d}:{m:02d}" for h, m in times)
-    logger.info(f"Scheduler times updated to: {times_desc}")
+    _scheduler.add_job(
+        _scheduled_crawl,
+        _build_trigger(time_str),
+        id=JOB_ID,
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    logger.info(f"Scheduler time updated to: {time_str}")

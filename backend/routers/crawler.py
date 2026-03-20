@@ -20,6 +20,7 @@ def _get_setting(db: Session, key: str, default: str = "") -> str:
 @router.get("/status")
 def crawler_status(db: Session = Depends(get_db)):
     enabled = _get_setting(db, "crawler_enabled", "false") == "true"
+    crawler_time = _get_setting(db, "crawler_time", "07:00")
     last_log = db.query(CrawlerLog).order_by(CrawlerLog.started_at.desc()).first()
     from scheduler import get_next_run_time
     next_run = get_next_run_time()
@@ -27,24 +28,30 @@ def crawler_status(db: Session = Depends(get_db)):
     # Crawler target search info
     crawler_search_id = _get_setting(db, "crawler_search_id", "")
     crawler_started_at = _get_setting(db, "crawler_started_at", "")
-    crawler_interval = _get_setting(db, "crawler_interval", "60")
     target_search = None
     if crawler_search_id:
         try:
             s = db.query(Search).filter(Search.id == int(crawler_search_id)).first()
             if s:
+                import json
+                try:
+                    airlines_list = json.loads(s.airlines) if s.airlines else []
+                except (json.JSONDecodeError, TypeError):
+                    airlines_list = []
                 target_search = {
                     "id": s.id,
                     "origin_city": s.origin_city,
                     "destination_city": s.destination_city,
                     "date_from": s.date_from.isoformat() if s.date_from else "",
                     "date_to": s.date_to.isoformat() if s.date_to else "",
+                    "airlines": airlines_list,
                 }
         except (ValueError, TypeError):
             pass
 
     return {
         "enabled": enabled,
+        "crawler_time": crawler_time,
         "last_run": {
             "started_at": last_log.started_at.isoformat() if last_log and last_log.started_at else None,
             "ended_at": last_log.ended_at.isoformat() if last_log and last_log.ended_at else None,
@@ -54,7 +61,6 @@ def crawler_status(db: Session = Depends(get_db)):
         "next_run": next_run,
         "crawler_search_id": crawler_search_id,
         "crawler_started_at": crawler_started_at,
-        "crawler_interval": int(crawler_interval) if crawler_interval else 60,
         "target_search": target_search,
     }
 
@@ -100,15 +106,15 @@ async def manual_run(db: Session = Depends(get_db)):
 
 @router.post("/update-schedule")
 def update_schedule(data: dict, db: Session = Depends(get_db)):
-    """Update crawler schedule times. Expects {times: '07:00,22:00' or '07:00'}"""
-    times = data.get("times", "07:00,22:00")
-    _set_setting(db, "crawler_times", times)
+    """Update crawler schedule time. Expects {time: '07:00'}"""
+    time_val = data.get("time", "07:00")
+    _set_setting(db, "crawler_time", time_val)
     db.commit()
 
-    from scheduler import update_schedule_times
-    update_schedule_times(times)
+    from scheduler import update_schedule_time
+    update_schedule_time(time_val)
 
-    return {"ok": True, "times": times}
+    return {"ok": True, "time": time_val}
 
 
 @router.get("/logs", tags=["logs"])

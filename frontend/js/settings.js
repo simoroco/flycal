@@ -31,21 +31,8 @@ async function loadAllSettings() {
             emailToggle.classList.remove('active');
         }
 
-        // Crawler schedule times
-        const crawlerTimes = settingsData.crawler_times || '07:00,22:00';
-        const times = String(crawlerTimes).split(',').map(t => t.trim());
-        document.getElementById('crawlerTime1').value = times[0] || '07:00';
-        const time2Input = document.getElementById('crawlerTime2');
-        const time2Toggle = document.getElementById('crawlerTime2Toggle');
-        if (times.length >= 2 && times[1]) {
-            time2Input.value = times[1];
-            time2Input.disabled = false;
-            time2Toggle.classList.add('active');
-        } else {
-            time2Input.value = '22:00';
-            time2Input.disabled = true;
-            time2Toggle.classList.remove('active');
-        }
+        // Crawler schedule time (single daily)
+        document.getElementById('crawlerTime').value = settingsData.crawler_time || '07:00';
 
         settingsTimeSlots = settingsData.time_slots || [];
         renderTimeSlots();
@@ -54,43 +41,13 @@ async function loadAllSettings() {
     }
 }
 
-function toggleSecondCrawlTime() {
-    const crawlerToggle = document.getElementById('crawlerToggle');
-    if (!crawlerToggle.classList.contains('active')) return; // Run #2 requires crawler enabled
-    const toggle = document.getElementById('crawlerTime2Toggle');
-    const input = document.getElementById('crawlerTime2');
-    toggle.classList.toggle('active');
-    input.disabled = !toggle.classList.contains('active');
-}
-
-function updateRun2State() {
-    const crawlerEnabled = document.getElementById('crawlerToggle').classList.contains('active');
-    const toggle2 = document.getElementById('crawlerTime2Toggle');
-    const input2 = document.getElementById('crawlerTime2');
-    if (!crawlerEnabled) {
-        toggle2.classList.remove('active');
-        toggle2.style.opacity = '0.4';
-        toggle2.style.pointerEvents = 'none';
-        input2.disabled = true;
-    } else {
-        toggle2.style.opacity = '1';
-        toggle2.style.pointerEvents = 'auto';
-        input2.disabled = !toggle2.classList.contains('active');
-    }
-}
-
 async function saveCrawlerSchedule() {
-    const time1 = document.getElementById('crawlerTime1').value || '07:00';
-    const time2Toggle = document.getElementById('crawlerTime2Toggle');
-    const time2 = document.getElementById('crawlerTime2').value || '22:00';
-    const times = time2Toggle.classList.contains('active') ? `${time1},${time2}` : time1;
-
+    const time = document.getElementById('crawlerTime').value || '07:00';
     try {
-        await API.updateSettings({ crawler_times: times });
-        // Update scheduler backend
-        await API.post('/api/crawler/update-schedule', { times });
+        await API.updateSettings({ crawler_time: time });
+        await API.post('/api/crawler/update-schedule', { time });
         await loadCrawlerInfo();
-        Toast.success('Crawler schedule saved.');
+        Toast.success('Schedule saved: daily at ' + time);
     } catch (e) {
         Toast.error('Error: ' + e.message);
     }
@@ -293,32 +250,31 @@ async function loadCrawlerInfo() {
         const nextRun = document.getElementById('nextRun');
         const targetInfo = document.getElementById('crawlerTargetInfo');
 
+        const crawlerTime = status.crawler_time || '07:00';
         dot.className = 'crawler-dot ' + (status.enabled ? 'active' : 'inactive');
-        label.textContent = status.enabled ? 'Stay Updated ON' : 'On-demand Only';
-
-        // Build schedule description from saved times
-        const crawlerTimes = settingsData.crawler_times || '07:00,22:00';
-        const times = String(crawlerTimes).split(',').map(t => t.trim()).filter(Boolean);
-        const scheduleDesc = times.join(' & ');
+        label.textContent = status.enabled ? 'Crawler ON' : 'Crawler OFF';
 
         if (status.enabled) {
             toggle.classList.add('active');
-            statusText.textContent = `Active — runs at ${scheduleDesc}`;
+            statusText.textContent = `Active — daily at ${crawlerTime}`;
         } else {
             toggle.classList.remove('active');
             statusText.textContent = 'Inactive';
         }
 
-        // Show target search info
+        // Show target search info (airports, dates, airlines)
         if (targetInfo) {
             if (status.enabled && status.target_search) {
                 const ts = status.target_search;
+                const airlines = (ts.airlines || []).join(', ');
                 const since = status.crawler_started_at
                     ? new Date(status.crawler_started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                     : '—';
                 targetInfo.innerHTML = `<p style="color:var(--accent);font-size:0.8rem">
-                    Crawling <strong>${(ts.origin_city || '').toUpperCase()} → ${(ts.destination_city || '').toUpperCase()}</strong>
-                    (${ts.date_from} → ${ts.date_to}) since ${since}
+                    <strong>${(ts.origin_city || '').toUpperCase()} → ${(ts.destination_city || '').toUpperCase()}</strong>
+                    &nbsp;|&nbsp; ${ts.date_from} → ${ts.date_to}
+                    &nbsp;|&nbsp; ${airlines}
+                    &nbsp;|&nbsp; since ${since}
                 </p>`;
             } else {
                 targetInfo.innerHTML = '';
@@ -335,8 +291,6 @@ async function loadCrawlerInfo() {
         nextRun.textContent = status.next_run
             ? new Date(status.next_run).toLocaleString('en-US')
             : '—';
-
-        updateRun2State();
     } catch (e) {
         console.error('Failed to load crawler info:', e);
     }
@@ -346,19 +300,26 @@ async function toggleCrawler() {
     try {
         const result = await API.toggleCrawler();
         await loadCrawlerInfo();
-        // Show notification with details
         const status = await API.getCrawlerStatus();
         const target = status.target_search;
-        let msg = result.enabled ? 'Crawler enabled' : 'Crawler disabled';
+        const crawlerTime = status.crawler_time || '07:00';
+
         if (result.enabled && target) {
-            msg += ` for ${(target.origin_city||'').toUpperCase()} → ${(target.destination_city||'').toUpperCase()}`;
-            if (status.next_run) {
-                const next = new Date(status.next_run).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-                msg += ` — Next: ${next}`;
-            }
+            const airlines = (target.airlines || []).join(', ');
+            const nextStr = status.next_run
+                ? new Date(status.next_run).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+                : crawlerTime;
+            const msg = `Crawler enabled — daily at ${crawlerTime}\n`
+                + `${(target.origin_city||'').toUpperCase()} → ${(target.destination_city||'').toUpperCase()}\n`
+                + `${target.date_from} → ${target.date_to}\n`
+                + `Airlines: ${airlines}\n`
+                + `Next run: ${nextStr}`;
+            Toast.success(msg, 8000);
+        } else if (result.enabled) {
+            Toast.success('Crawler enabled — daily at ' + crawlerTime);
+        } else {
+            Toast.info('Crawler disabled');
         }
-        if (result.enabled) Toast.success(msg, 6000);
-        else Toast.info(msg);
     } catch (e) {
         Toast.error('Error: ' + e.message);
     }
