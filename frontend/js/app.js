@@ -144,6 +144,18 @@ async function loadLastSearchInfo() {
             document.getElementById('destinationCity').value = (data.destination_city || '').toUpperCase();
             if (data.date_from) document.getElementById('dateFrom').value = data.date_from;
             if (data.date_to) document.getElementById('dateTo').value = data.date_to;
+            // Set airline toggles to match the last search
+            if (data.airlines && data.airlines.length > 0) {
+                const searchAirlines = data.airlines.map(a => a.toUpperCase());
+                document.querySelectorAll('.airline-toggle').forEach(el => {
+                    const name = (el.dataset.airline || '').toUpperCase();
+                    if (searchAirlines.includes(name)) {
+                        el.classList.add('active');
+                    } else {
+                        el.classList.remove('active');
+                    }
+                });
+            }
             // If search already has results and not currently searching, show them
             if (data.flights && data.flights.length > 0 && !isSearching) {
                 allFlights = data.flights;
@@ -168,7 +180,51 @@ async function checkForBackgroundSearch() {
                 isSearching = true;
                 currentSearchId = data.id;
                 allFlights = [];
+
+                // Populate search parameters in the UI
+                if (data.origin_city) document.getElementById('originCity').value = data.origin_city.toUpperCase();
+                if (data.destination_city) document.getElementById('destinationCity').value = data.destination_city.toUpperCase();
+                if (data.date_from) document.getElementById('dateFrom').value = data.date_from;
+                if (data.date_to) document.getElementById('dateTo').value = data.date_to;
+
+                // Set airline toggles to match the running search
+                if (data.airlines && data.airlines.length > 0) {
+                    const searchAirlines = data.airlines.map(a => a.toUpperCase());
+                    document.querySelectorAll('.airline-toggle').forEach(el => {
+                        const name = (el.dataset.airline || '').toUpperCase();
+                        if (searchAirlines.includes(name)) {
+                            el.classList.add('active');
+                        } else {
+                            el.classList.remove('active');
+                        }
+                    });
+                }
+
+                // Update progress text
+                const origin = data.origin_city || '';
+                const dest = data.destination_city || '';
+                const progressText = document.getElementById('progressText');
+                if (progressText) progressText.textContent = `${origin} → ${dest} | ${data.date_from || ''} → ${data.date_to || ''}`;
+
                 showSearchingState();
+
+                // Resume timer from actual search start time
+                if (status.last_run.started_at) {
+                    const serverStart = new Date(status.last_run.started_at).getTime();
+                    searchStartTime = serverStart;
+                    const timerEl = document.getElementById('searchTimer');
+                    const estimateEl = document.getElementById('searchEstimate');
+                    if (estimateEl) estimateEl.textContent = '';
+                    if (searchTimerInterval) clearInterval(searchTimerInterval);
+                    searchTimerInterval = setInterval(() => {
+                        if (!searchStartTime || !timerEl) return;
+                        const elapsed = Math.floor((Date.now() - searchStartTime) / 1000);
+                        const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                        const ss = String(elapsed % 60).padStart(2, '0');
+                        timerEl.textContent = `⏱ ${mm}:${ss}`;
+                    }, 1000);
+                }
+
                 startPolling(data.id);
                 console.log(`[FlyCal Crawler] Resumed polling for background search #${data.id}`);
             }
