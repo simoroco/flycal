@@ -32,9 +32,15 @@
         <div class="search-bar-inner">
             <div class="search-row-compact">
                 <span class="search-label">WHERE:</span>
-                <input type="text" id="originCity" placeholder="From" autocomplete="off" class="compact-input city-input" list="cityList">
+                <div class="city-select-wrapper" id="originCityWrapper">
+                    <input type="text" id="originCity" placeholder="From" autocomplete="off" class="compact-input city-input" readonly>
+                    <div class="city-dropdown hidden" id="originCityDropdown"></div>
+                </div>
                 <span class="compact-arrow swap-arrow" onclick="swapCities()" title="Swap cities">→</span>
-                <input type="text" id="destinationCity" placeholder="To" autocomplete="off" class="compact-input city-input" list="cityList">
+                <div class="city-select-wrapper" id="destinationCityWrapper">
+                    <input type="text" id="destinationCity" placeholder="To" autocomplete="off" class="compact-input city-input" readonly>
+                    <div class="city-dropdown hidden" id="destinationCityDropdown"></div>
+                </div>
                 <span class="search-divider"></span>
                 <span class="search-label">DATES:</span>
                 <input type="date" id="dateFrom" class="compact-input date-input">
@@ -49,7 +55,6 @@
                     <span id="searchLoader" class="loader hidden"></span>
                 </button>
             </div>
-            <datalist id="cityList"></datalist>
         </div>
     </section>
 

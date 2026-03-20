@@ -285,22 +285,197 @@ function getSelectedAirlines() {
     return names;
 }
 
-// ── City list for autocomplete (from all scrapers CITY_AIRPORT_MAP) ──
+// ── City data: grouped by country ──
+const CITIES_BY_COUNTRY = {
+    "France": ["PARIS", "LYON", "MARSEILLE", "TOULOUSE", "BORDEAUX", "NANTES", "NICE", "MONTPELLIER", "LILLE", "STRASBOURG"],
+    "Morocco": ["MARRAKECH", "CASABLANCA", "NADOR", "OUJDA", "TANGIER", "FEZ", "AGADIR", "RABAT", "ESSAOUIRA"],
+    "Spain": ["MADRID", "BARCELONA", "MALAGA", "SEVILLE", "VALENCIA"],
+    "United Kingdom": ["LONDON", "EDINBURGH", "MANCHESTER", "BIRMINGHAM", "GLASGOW", "BRISTOL", "LIVERPOOL"],
+    "Italy": ["ROME", "MILAN"],
+    "Germany": ["BERLIN", "FRANKFURT", "DUSSELDORF", "MUNICH", "HAMBURG", "COLOGNE"],
+    "Portugal": ["LISBON", "PORTO"],
+    "Netherlands": ["AMSTERDAM"],
+    "Belgium": ["BRUSSELS"],
+    "Ireland": ["DUBLIN"],
+    "Austria": ["VIENNA"],
+    "Switzerland": ["ZURICH", "GENEVA"],
+    "Scandinavia": ["COPENHAGEN", "STOCKHOLM", "OSLO", "HELSINKI"],
+    "Eastern Europe": ["WARSAW", "PRAGUE", "BUDAPEST"],
+    "Greece": ["ATHENS"],
+    "Turkey": ["ISTANBUL"],
+    "Tunisia": ["TUNIS"],
+    "Egypt": ["CAIRO"],
+};
+
+// Build flat lookup: city → country
+const CITY_COUNTRY_MAP = {};
+for (const [country, cities] of Object.entries(CITIES_BY_COUNTRY)) {
+    for (const city of cities) CITY_COUNTRY_MAP[city] = country;
+}
+
+// Recent cities (persisted in localStorage)
+const RECENT_CITIES_KEY = 'flycal_recent_cities';
+const MAX_RECENT_CITIES = 3;
+
+function getRecentCities() {
+    try {
+        return JSON.parse(localStorage.getItem(RECENT_CITIES_KEY)) || [];
+    } catch { return []; }
+}
+
+function addRecentCity(city) {
+    if (!city) return;
+    city = city.toUpperCase();
+    let recents = getRecentCities().filter(c => c !== city);
+    recents.unshift(city);
+    if (recents.length > MAX_RECENT_CITIES) recents = recents.slice(0, MAX_RECENT_CITIES);
+    localStorage.setItem(RECENT_CITIES_KEY, JSON.stringify(recents));
+}
+
+// ── City dropdown component ──
+function initCityDropdown(inputId, dropdownId) {
+    const input = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
+    let highlightIdx = -1;
+
+    // Build dropdown HTML
+    function renderDropdown(filter = '') {
+        const f = filter.toUpperCase().trim();
+        let html = '<div class="city-dropdown-search"><input type="text" placeholder="Search city..." class="city-search-input"></div>';
+        html += '<div class="city-dropdown-list">';
+
+        // Recent cities
+        const recents = getRecentCities();
+        if (!f && recents.length > 0) {
+            html += '<div class="city-group-label recent-label">Recent</div>';
+            for (const city of recents) {
+                const country = CITY_COUNTRY_MAP[city] || '';
+                html += `<div class="city-option" data-city="${city}"><span class="city-name">${city}</span><span class="city-country">${country}</span></div>`;
+            }
+        }
+
+        // Countries
+        let hasResults = false;
+        for (const [country, cities] of Object.entries(CITIES_BY_COUNTRY)) {
+            const filtered = f ? cities.filter(c => c.includes(f) || country.toUpperCase().includes(f)) : cities;
+            if (filtered.length === 0) continue;
+            hasResults = true;
+            html += `<div class="city-group-label">${country}</div>`;
+            for (const city of filtered) {
+                html += `<div class="city-option" data-city="${city}"><span class="city-name">${city}</span></div>`;
+            }
+        }
+
+        if (f && !hasResults) {
+            html += '<div class="city-no-results">No cities found</div>';
+        }
+
+        html += '</div>';
+        dropdown.innerHTML = html;
+        highlightIdx = -1;
+
+        // Attach click handlers
+        dropdown.querySelectorAll('.city-option').forEach(opt => {
+            opt.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                selectCity(opt.dataset.city);
+            });
+        });
+
+        // Attach search input events
+        const searchInput = dropdown.querySelector('.city-search-input');
+        if (searchInput) {
+            searchInput.value = filter;
+            // Focus search input after render
+            requestAnimationFrame(() => searchInput.focus());
+            searchInput.addEventListener('input', () => {
+                renderDropdown(searchInput.value);
+            });
+            searchInput.addEventListener('keydown', handleKeydown);
+        }
+    }
+
+    function selectCity(city) {
+        input.value = city;
+        addRecentCity(city);
+        closeDropdown();
+        // Trigger change event for any listeners
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function openDropdown() {
+        dropdown.classList.remove('hidden');
+        renderDropdown('');
+    }
+
+    function closeDropdown() {
+        dropdown.classList.add('hidden');
+    }
+
+    function handleKeydown(e) {
+        const options = dropdown.querySelectorAll('.city-option');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            highlightIdx = Math.min(highlightIdx + 1, options.length - 1);
+            updateHighlight(options);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            highlightIdx = Math.max(highlightIdx - 1, 0);
+            updateHighlight(options);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (highlightIdx >= 0 && highlightIdx < options.length) {
+                selectCity(options[highlightIdx].dataset.city);
+            }
+        } else if (e.key === 'Escape') {
+            closeDropdown();
+        }
+    }
+
+    function updateHighlight(options) {
+        options.forEach((opt, i) => {
+            opt.classList.toggle('highlighted', i === highlightIdx);
+            if (i === highlightIdx) opt.scrollIntoView({ block: 'nearest' });
+        });
+    }
+
+    // Open on click
+    input.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Close the other dropdown if open
+        document.querySelectorAll('.city-dropdown').forEach(d => {
+            if (d !== dropdown) d.classList.add('hidden');
+        });
+        if (dropdown.classList.contains('hidden')) {
+            openDropdown();
+        } else {
+            closeDropdown();
+        }
+    });
+
+    // Close on outside click
+    document.addEventListener('click', (e) => {
+        if (!dropdown.contains(e.target) && e.target !== input) {
+            closeDropdown();
+        }
+    });
+
+    // Prevent dropdown from closing when clicking inside it
+    dropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+}
+
 async function loadCityList() {
     try {
-        cityList = [
-            'PARIS', 'MARRAKECH', 'CASABLANCA', 'NADOR', 'OUJDA', 'TANGIER', 'FEZ',
-            'AGADIR', 'RABAT', 'ESSAOUIRA', 'LYON', 'MARSEILLE', 'TOULOUSE', 'BORDEAUX',
-            'NANTES', 'NICE', 'MONTPELLIER', 'LILLE', 'STRASBOURG', 'LONDON', 'MADRID',
-            'BARCELONA', 'ROME', 'MILAN', 'AMSTERDAM', 'BRUSSELS', 'BERLIN', 'FRANKFURT',
-            'LISBON', 'PORTO', 'MALAGA', 'SEVILLE', 'VALENCIA', 'DUBLIN', 'EDINBURGH',
-            'MANCHESTER', 'BIRMINGHAM', 'GLASGOW', 'BRISTOL', 'LIVERPOOL',
-            'DUSSELDORF', 'MUNICH', 'HAMBURG', 'COLOGNE', 'VIENNA', 'ZURICH', 'GENEVA',
-            'COPENHAGEN', 'STOCKHOLM', 'OSLO', 'HELSINKI', 'WARSAW', 'PRAGUE', 'BUDAPEST',
-            'ATHENS', 'ISTANBUL', 'CAIRO', 'TUNIS',
-        ];
-        const datalist = document.getElementById('cityList');
-        datalist.innerHTML = cityList.map(c => `<option value="${c}">`).join('');
+        // Build flat city list for validation
+        cityList = [];
+        for (const cities of Object.values(CITIES_BY_COUNTRY)) {
+            cityList.push(...cities);
+        }
+        // Init custom dropdowns
+        initCityDropdown('originCity', 'originCityDropdown');
+        initCityDropdown('destinationCity', 'destinationCityDropdown');
     } catch (e) {
         console.error('Failed to load city list:', e);
     }
