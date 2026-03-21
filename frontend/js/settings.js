@@ -1,9 +1,17 @@
-/* === FlyCal — Settings Page === */
+/* === FlyCal — Settings Page (Auto-Save) === */
 
 let settingsAirlines = [];
 let settingsTimeSlots = [];
 let settingsData = {};
 
+/* ── Debounce utility ── */
+const _debounceTimers = {};
+function debounce(key, fn, delay = 600) {
+    clearTimeout(_debounceTimers[key]);
+    _debounceTimers[key] = setTimeout(fn, delay);
+}
+
+/* ── Init ── */
 async function initSettings() {
     await Promise.all([
         loadAllSettings(),
@@ -11,8 +19,50 @@ async function initSettings() {
         loadCrawlerInfo(),
         loadLogs(),
     ]);
+    bindAutoSave();
 }
 
+/* ── Bind auto-save listeners ── */
+function bindAutoSave() {
+    // Ideal price
+    document.getElementById('idealPrice').addEventListener('change', () => {
+        debounce('idealPrice', saveIdealPrice);
+    });
+
+    // Crawler time
+    document.getElementById('crawlerTime').addEventListener('change', () => {
+        debounce('crawlerTime', saveCrawlerSchedule);
+    });
+
+    // Email fields — auto-save on blur or change
+    const emailFields = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPassword', 'smtpTo', 'serverHostname'];
+    emailFields.forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('change', () => debounce('email', saveEmailSettings));
+        el.addEventListener('blur', () => debounce('email', saveEmailSettings));
+    });
+
+    // Time slots — delegate change events on the container
+    document.getElementById('timeSlotsContainer').addEventListener('change', () => {
+        debounce('timeSlots', saveTimeSlots);
+    });
+    document.getElementById('timeSlotsContainer').addEventListener('blur', () => {
+        debounce('timeSlots', saveTimeSlots);
+    }, true); // capture phase for blur
+
+    // Airlines — delegate on container
+    const airlinesContainer = document.getElementById('airlinesListSettings');
+    airlinesContainer.addEventListener('change', (e) => {
+        const row = e.target.closest('.airline-row');
+        if (row) debounce('airline-' + row.dataset.id, () => saveAirline(parseInt(row.dataset.id)));
+    });
+    airlinesContainer.addEventListener('blur', (e) => {
+        const row = e.target.closest('.airline-row');
+        if (row) debounce('airline-' + row.dataset.id, () => saveAirline(parseInt(row.dataset.id)));
+    }, true);
+}
+
+/* ── Load settings ── */
 async function loadAllSettings() {
     try {
         settingsData = await API.getSettings();
@@ -42,6 +92,18 @@ async function loadAllSettings() {
     }
 }
 
+/* ── Ideal price ── */
+async function saveIdealPrice() {
+    const val = parseInt(document.getElementById('idealPrice').value) || 40;
+    try {
+        await API.updateSettings({ ideal_price: val });
+        Toast.success('Reference price saved.');
+    } catch (e) {
+        Toast.error('Error: ' + e.message);
+    }
+}
+
+/* ── Crawler schedule ── */
 async function saveCrawlerSchedule() {
     const time = document.getElementById('crawlerTime').value || '07:00';
     try {
@@ -54,6 +116,7 @@ async function saveCrawlerSchedule() {
     }
 }
 
+/* ── Airlines ── */
 async function loadAirlinesList() {
     try {
         settingsAirlines = await API.getAirlines();
@@ -95,7 +158,6 @@ function renderAirlines() {
                     <input type="file" accept="image/*" style="display:none" onchange="uploadLogo(${a.id}, this)">
                 </label>
             </div>
-            <button class="btn-sm btn-accent" onclick="saveAirline(${a.id})">Save</button>
             <button class="btn-sm btn-danger" onclick="deleteAirline(${a.id})">Delete</button>
         </div>`;
     }).join('');
@@ -125,7 +187,8 @@ async function saveAirline(id) {
 
     try {
         await API.updateAirline(id, { name, fees_fixed, fees_percent, logo_url });
-        await loadAirlinesList();
+        const airline = settingsAirlines.find(a => a.id === id);
+        if (airline) Object.assign(airline, { name, fees_fixed, fees_percent, logo_url });
         Toast.success('Airline saved.');
     } catch (e) {
         Toast.error('Error: ' + e.message);
@@ -163,7 +226,6 @@ async function deleteAirline(id) {
 }
 
 async function addAirline() {
-    // Use a simple inline input instead of prompt()
     const name = prompt('Airline name:');
     if (!name || !name.trim()) return;
     try {
@@ -175,16 +237,7 @@ async function addAirline() {
     }
 }
 
-async function saveIdealPrice() {
-    const val = parseInt(document.getElementById('idealPrice').value) || 40;
-    try {
-        await API.updateSettings({ ideal_price: val });
-        Toast.success('Reference price saved.');
-    } catch (e) {
-        Toast.error('Error: ' + e.message);
-    }
-}
-
+/* ── Time Slots ── */
 function renderTimeSlots() {
     const container = document.getElementById('timeSlotsContainer');
     if (!settingsTimeSlots.length) {
@@ -211,11 +264,13 @@ function renderTimeSlots() {
 function addTimeSlot() {
     settingsTimeSlots.push({ label: 'New slot', start: '00:00', end: '06:00', color: 'orange' });
     renderTimeSlots();
+    saveTimeSlots();
 }
 
 function removeTimeSlot(index) {
     settingsTimeSlots.splice(index, 1);
     renderTimeSlots();
+    saveTimeSlots();
 }
 
 async function saveTimeSlots() {
@@ -239,6 +294,7 @@ async function saveTimeSlots() {
     }
 }
 
+/* ── Crawler ── */
 async function loadCrawlerInfo() {
     try {
         const status = await API.getCrawlerStatus();
@@ -263,7 +319,6 @@ async function loadCrawlerInfo() {
             statusText.textContent = 'Inactive';
         }
 
-        // Show target search info (airports, dates, airlines)
         if (targetInfo) {
             if (status.enabled && status.target_search) {
                 const ts = status.target_search;
@@ -364,9 +419,27 @@ async function loadLogs() {
     }
 }
 
+/* ── Password toggle ── */
+function togglePasswordVisibility() {
+    const input = document.getElementById('smtpPassword');
+    const iconEye = document.getElementById('pwIconEye');
+    const iconEyeOff = document.getElementById('pwIconEyeOff');
+    if (input.type === 'password') {
+        input.type = 'text';
+        iconEye.style.display = 'none';
+        iconEyeOff.style.display = 'block';
+    } else {
+        input.type = 'password';
+        iconEye.style.display = 'block';
+        iconEyeOff.style.display = 'none';
+    }
+}
+
+/* ── Email settings ── */
 function toggleEmail() {
     const el = document.getElementById('emailToggle');
     el.classList.toggle('active');
+    saveEmailSettings();
 }
 
 async function saveEmailSettings() {
@@ -396,7 +469,7 @@ async function testSmtp() {
 
     try {
         const result = await API.testSmtp();
-        resultEl.textContent = result.message || 'Connection successful!';
+        resultEl.textContent = result.message || 'Test email sent! Check your inbox.';
         resultEl.style.color = 'var(--green)';
     } catch (e) {
         resultEl.textContent = 'Failed: ' + e.message;
@@ -404,6 +477,7 @@ async function testSmtp() {
     }
 }
 
+/* ── Data export/import ── */
 function exportData() {
     window.location.href = '/api/settings/export';
 }

@@ -1,7 +1,6 @@
 import csv
 import io
 import json
-import smtplib
 from datetime import datetime, date as date_type
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
@@ -68,22 +67,15 @@ def update_settings(data: SettingsUpdate, db: Session = Depends(get_db)):
 
 @router.post("/smtp-test")
 def test_smtp(db: Session = Depends(get_db)):
-    settings = _get_all_settings(db)
-    host = settings.get("smtp_host", "")
-    port = int(settings.get("smtp_port", 587))
-    user = settings.get("smtp_user", "")
-    password = settings.get("smtp_password", "")
-
-    if not host or not user:
-        raise HTTPException(status_code=400, detail="SMTP host and user are required")
+    from email_service import send_test_email
 
     try:
-        with smtplib.SMTP(host, port, timeout=10) as server:
-            server.starttls()
-            server.login(user, password)
-        return {"ok": True, "message": "SMTP connection successful"}
+        send_test_email()
+        return {"ok": True, "message": "Test email sent successfully! Check your inbox."}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"SMTP connection failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"SMTP test failed: {str(e)}")
 
 
 @router.get("/export")

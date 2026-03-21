@@ -40,6 +40,62 @@ def _get_settings():
         db.close()
 
 
+def send_test_email():
+    """Send a real test email using the recap template with placeholder data."""
+    settings = _get_settings()
+
+    host = settings.get("smtp_host", "")
+    port = int(settings.get("smtp_port", "587"))
+    user = settings.get("smtp_user", "")
+    password = settings.get("smtp_password", "")
+    to_email = settings.get("smtp_to", "")
+
+    if not host or not user or not to_email:
+        raise ValueError("SMTP host, user and recipient are required")
+
+    server_hostname = _get_server_hostname(settings)
+
+    html = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; background: #1a1a2e; color: #e8e8f0; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background: rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; border: 1px solid rgba(255,255,255,0.1);">
+            <h1 style="color: #6c63ff;">✈ FlyCal — Email de test</h1>
+            <p style="color: #00c864; font-size: 1.1rem; font-weight: 600;">✅ Configuration SMTP fonctionnelle !</p>
+            <hr style="border-color: rgba(255,255,255,0.1); margin: 16px 0;">
+            <p><strong>Trajet:</strong> PARIS → MARRAKECH</p>
+            <p><strong>Dates:</strong> 2026-01-01 — 2026-01-15</p>
+            <p><strong>Type de vol:</strong> Aller-retour</p>
+            <p><strong>Scan:</strong> Test</p>
+            <p><strong>Vols directs trouvés:</strong> 0</p>
+            <h2 style="color: #6c63ff;">Par compagnie</h2>
+            <ul><li><em>Aucune donnée (email de test)</em></li></ul>
+            <h2 style="color: #6c63ff;">Top 3 — Meilleurs prix (aller)</h2>
+            <ul><li><em>Aucune donnée (email de test)</em></li></ul>
+            <h2 style="color: #6c63ff;">Top 3 — Meilleurs prix (retour)</h2>
+            <ul><li><em>Aucune donnée (email de test)</em></li></ul>
+            <h2 style="color: #6c63ff;">Top 3 — Meilleures combinaisons (score vert)</h2>
+            <ul><li><em>Aucune donnée (email de test)</em></li></ul>
+            <hr style="border-color: rgba(255,255,255,0.1);">
+            <p><a href="http://{server_hostname}:4444/" style="color: #6c63ff;">Ouvrir FlyCal →</a></p>
+        </div>
+    </body>
+    </html>
+    """
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "FlyCal [Test] — Vérification SMTP"
+    msg["From"] = user
+    msg["To"] = to_email
+    msg.attach(MIMEText(html, "html"))
+
+    with smtplib.SMTP(host, port, timeout=15) as server:
+        server.starttls()
+        server.login(user, password)
+        server.sendmail(user, [to_email], msg.as_string())
+
+    logger.info(f"Test email sent to {to_email}")
+
+
 def send_crawl_recap(search_id: int):
     settings = _get_settings()
 

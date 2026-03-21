@@ -930,6 +930,36 @@ body {
 
 .input-sm { max-width: 100px; }
 
+.password-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex: 1;
+    max-width: 320px;
+    position: relative;
+}
+.password-wrapper .input-field {
+    padding-right: 40px;
+    max-width: 100%;
+}
+.btn-toggle-pw {
+    position: absolute;
+    right: 6px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: color var(--transition);
+}
+.btn-toggle-pw:hover {
+    color: var(--accent);
+}
+
 /* Toggle Switch */
 .toggle-switch {
     width: 40px;
