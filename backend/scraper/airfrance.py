@@ -6,11 +6,12 @@ import re
 from datetime import date, timedelta
 from typing import List
 
-from .base import FlightResult, ScraperBase, make_route_not_served, parse_time, parse_price
+from .base import FlightResult, ScraperBase, make_route_not_served, parse_time, parse_price, resolve_airport
 
 logger = logging.getLogger("flycal.scraper.airfrance")
 
 CITY_AIRPORT_MAP = {
+    # France
     "paris": "CDG",
     "cdg": "CDG",
     "orly": "ORY",
@@ -23,21 +24,134 @@ CITY_AIRPORT_MAP = {
     "montpellier": "MPL",
     "lille": "LIL",
     "strasbourg": "SXB",
+    # French Overseas
+    "pointe-a-pitre": "PTP",
+    "pointe a pitre": "PTP",
+    "fort-de-france": "FDF",
+    "fort de france": "FDF",
+    "cayenne": "CAY",
+    "saint-denis reunion": "RUN",
+    "saint denis reunion": "RUN",
+    "la reunion": "RUN",
+    "reunion": "RUN",
+    # Portugal
     "porto": "OPO",
     "lisbonne": "LIS",
     "lisbon": "LIS",
+    "faro": "FAO",
+    "funchal": "FNC",
+    # Spain
     "madrid": "MAD",
     "barcelone": "BCN",
     "barcelona": "BCN",
+    "malaga": "AGP",
+    "seville": "SVQ",
+    "valencia": "VLC",
+    "bilbao": "BIO",
+    "palma": "PMI",
+    "palma de mallorca": "PMI",
+    "ibiza": "IBZ",
+    "tenerife": "TFS",
+    "gran canaria": "LPA",
+    "alicante": "ALC",
+    # Italy
     "rome": "FCO",
     "milan": "MXP",
+    "venice": "VCE",
+    "venise": "VCE",
+    "naples": "NAP",
+    "florence": "FLR",
+    "bologna": "BLQ",
+    "turin": "TRN",
+    "catania": "CTA",
+    "palermo": "PMO",
+    "bari": "BRI",
+    # United Kingdom
     "london": "LHR",
     "londres": "LHR",
+    "edinburgh": "EDI",
+    "edimbourg": "EDI",
+    "manchester": "MAN",
+    "birmingham": "BHX",
+    "glasgow": "GLA",
+    "newcastle": "NCL",
+    # Ireland
     "dublin": "DUB",
+    # Netherlands
     "amsterdam": "AMS",
+    # Belgium
     "bruxelles": "BRU",
     "brussels": "BRU",
+    # Germany
     "berlin": "BER",
+    "frankfurt": "FRA",
+    "francfort": "FRA",
+    "dusseldorf": "DUS",
+    "munich": "MUC",
+    "hamburg": "HAM",
+    "cologne": "CGN",
+    "stuttgart": "STR",
+    "hanover": "HAJ",
+    "nuremberg": "NUE",
+    # Austria
+    "vienna": "VIE",
+    "vienne": "VIE",
+    "salzburg": "SZG",
+    "innsbruck": "INN",
+    # Switzerland
+    "zurich": "ZRH",
+    "geneva": "GVA",
+    "geneve": "GVA",
+    "basel": "BSL",
+    # Scandinavia
+    "copenhague": "CPH",
+    "copenhagen": "CPH",
+    "stockholm": "ARN",
+    "oslo": "OSL",
+    "helsinki": "HEL",
+    "gothenburg": "GOT",
+    "bergen": "BGO",
+    "tampere": "TMP",
+    "rovaniemi": "RVN",
+    # Eastern Europe
+    "varsovie": "WAW",
+    "warsaw": "WAW",
+    "prague": "PRG",
+    "budapest": "BUD",
+    "bucarest": "OTP",
+    "bucharest": "OTP",
+    "sofia": "SOF",
+    "cracovie": "KRK",
+    "krakow": "KRK",
+    "zagreb": "ZAG",
+    "belgrade": "BEG",
+    "bratislava": "BTS",
+    "ljubljana": "LJU",
+    # Baltic States
+    "tallinn": "TLL",
+    "riga": "RIX",
+    "vilnius": "VNO",
+    # Greece
+    "athenes": "ATH",
+    "athens": "ATH",
+    "thessaloniki": "SKG",
+    "santorini": "JTR",
+    "mykonos": "JMK",
+    "heraklion": "HER",
+    "rhodes": "RHO",
+    "corfu": "CFU",
+    # Turkey
+    "istanbul": "IST",
+    "ankara": "ESB",
+    "antalya": "AYT",
+    "izmir": "ADB",
+    "bodrum": "BJV",
+    # Cyprus
+    "larnaca": "LCA",
+    "paphos": "PFO",
+    # Malta
+    "malta": "MLA",
+    # Morocco
     "marrakech": "RAK",
     "fes": "FEZ",
     "fez": "FEZ",
@@ -46,32 +160,117 @@ CITY_AIRPORT_MAP = {
     "casablanca": "CMN",
     "rabat": "RBA",
     "agadir": "AGA",
+    "oujda": "OUD",
+    "nador": "NDR",
+    "essaouira": "ESU",
+    # Algeria
     "alger": "ALG",
     "algiers": "ALG",
     "oran": "ORN",
+    # Tunisia
     "tunis": "TUN",
+    # Egypt
+    "le caire": "CAI",
+    "cairo": "CAI",
+    "hurghada": "HRG",
+    "luxor": "LXR",
+    "alexandria": "HBE",
+    "alexandrie": "HBE",
+    # Middle East
+    "dubai": "DXB",
+    "abu dhabi": "AUH",
+    "doha": "DOH",
+    "riyadh": "RUH",
+    "jeddah": "JED",
+    "muscat": "MCT",
+    "kuwait city": "KWI",
+    "bahrain": "BAH",
+    "amman": "AMM",
+    "beirut": "BEY",
+    "beyrouth": "BEY",
+    "tel aviv": "TLV",
+    "medina": "MED",
+    # North America
     "new york": "JFK",
+    "los angeles": "LAX",
+    "chicago": "ORD",
+    "miami": "MIA",
+    "dallas": "DFW",
+    "san francisco": "SFO",
+    "washington": "IAD",
+    "boston": "BOS",
+    "houston": "IAH",
+    "seattle": "SEA",
+    "atlanta": "ATL",
+    "denver": "DEN",
+    "philadelphia": "PHL",
+    "phoenix": "PHX",
+    "orlando": "MCO",
+    "charlotte": "CLT",
+    "las vegas": "LAS",
+    "toronto": "YYZ",
     "montreal": "YUL",
+    "vancouver": "YVR",
+    "mexico city": "MEX",
+    "cancun": "CUN",
+    # South America
+    "sao paulo": "GRU",
+    "buenos aires": "EZE",
+    "lima": "LIM",
+    "bogota": "BOG",
+    "santiago": "SCL",
+    "rio de janeiro": "GIG",
+    # East Asia
+    "tokyo": "NRT",
+    "beijing": "PEK",
+    "shanghai": "PVG",
+    "hong kong": "HKG",
+    "seoul": "ICN",
+    "taipei": "TPE",
+    "osaka": "KIX",
+    # Southeast Asia
+    "singapore": "SIN",
+    "singapour": "SIN",
+    "bangkok": "BKK",
+    "kuala lumpur": "KUL",
+    "jakarta": "CGK",
+    "manila": "MNL",
+    "ho chi minh city": "SGN",
+    "hanoi": "HAN",
+    "bali": "DPS",
+    # South Asia
+    "mumbai": "BOM",
+    "delhi": "DEL",
+    "bangalore": "BLR",
+    "chennai": "MAA",
+    "colombo": "CMB",
+    "male": "MLE",
+    # West Africa
     "dakar": "DSS",
     "abidjan": "ABJ",
-    "athenes": "ATH",
-    "athens": "ATH",
-    "budapest": "BUD",
-    "prague": "PRG",
-    "varsovie": "WAW",
-    "warsaw": "WAW",
-    "bucarest": "OTP",
-    "bucharest": "OTP",
-    "stockholm": "ARN",
-    "oslo": "OSL",
-    "copenhague": "CPH",
-    "copenhagen": "CPH",
+    "lagos": "LOS",
+    "accra": "ACC",
+    # East Africa
+    "nairobi": "NBO",
+    "addis ababa": "ADD",
+    "dar es salaam": "DAR",
+    # Southern Africa
+    "johannesburg": "JNB",
+    "cape town": "CPT",
+    # Indian Ocean
+    "mauritius": "MRU",
+    "maurice": "MRU",
+    # Oceania
+    "sydney": "SYD",
+    # Caribbean
+    "havana": "HAV",
+    "punta cana": "PUJ",
+    "santo domingo": "SDQ",
 }
 
 
 def _resolve_airport(city: str) -> str:
-    normalized = city.strip().lower()
-    return CITY_AIRPORT_MAP.get(normalized, normalized.upper()[:3])
+    return resolve_airport(city, CITY_AIRPORT_MAP)
 
 
 class AirFranceScraper(ScraperBase):

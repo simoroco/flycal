@@ -4,13 +4,14 @@ from typing import List
 
 import httpx
 
-from .base import FlightResult, ScraperBase, make_route_not_served
+from .base import FlightResult, ScraperBase, make_route_not_served, resolve_airport
 
 logger = logging.getLogger("flycal.scraper.ryanair")
 
 RYANAIR_API = "https://www.ryanair.com/api/farfnd/3/oneWayFares"
 
 CITY_AIRPORT_MAP = {
+    # France (Ryanair uses secondary airports)
     "paris": "BVA",
     "beauvais": "BVA",
     "marseille": "MRS",
@@ -21,21 +22,104 @@ CITY_AIRPORT_MAP = {
     "lille": "LIL",
     "nice": "NCE",
     "montpellier": "MPL",
+    "strasbourg": "SXB",
+    # Portugal
     "porto": "OPO",
     "lisbonne": "LIS",
     "lisbon": "LIS",
+    "faro": "FAO",
+    # Spain
     "madrid": "MAD",
     "barcelone": "BCN",
     "barcelona": "BCN",
+    "malaga": "AGP",
+    "seville": "SVQ",
+    "valencia": "VLC",
+    "palma": "PMI",
+    "palma de mallorca": "PMI",
+    "ibiza": "IBZ",
+    "tenerife": "TFS",
+    "gran canaria": "LPA",
+    "bilbao": "BIO",
+    "alicante": "ALC",
+    # Italy (Ryanair uses secondary airports)
     "rome": "CIA",
     "milan": "BGY",
+    "venice": "TSF",
+    "naples": "NAP",
+    "florence": "PSA",
+    "bologna": "BLQ",
+    "turin": "TRN",
+    "catania": "CTA",
+    "palermo": "PMO",
+    "bari": "BRI",
+    # United Kingdom
     "london": "STN",
     "londres": "STN",
+    "edinburgh": "EDI",
+    "manchester": "MAN",
+    "birmingham": "BHX",
+    "glasgow": "PIK",
+    "bristol": "BRS",
+    "liverpool": "LPL",
+    "newcastle": "NCL",
+    # Ireland
     "dublin": "DUB",
+    # Netherlands / Belgium
     "bruxelles": "CRL",
     "brussels": "CRL",
     "amsterdam": "EIN",
+    # Germany
     "berlin": "BER",
+    "frankfurt": "HHN",
+    "dusseldorf": "NRN",
+    "cologne": "CGN",
+    "hamburg": "HAM",
+    "nuremberg": "NUE",
+    # Austria
+    "vienna": "VIE",
+    "salzburg": "SZG",
+    # Scandinavia
+    "copenhague": "CPH",
+    "copenhagen": "CPH",
+    "stockholm": "NYO",
+    "oslo": "TRF",
+    "gothenburg": "GOT",
+    # Eastern Europe
+    "varsovie": "WMI",
+    "warsaw": "WMI",
+    "prague": "PRG",
+    "budapest": "BUD",
+    "bucarest": "OTP",
+    "bucharest": "OTP",
+    "sofia": "SOF",
+    "cracovie": "KRK",
+    "krakow": "KRK",
+    "zagreb": "ZAG",
+    "bratislava": "BTS",
+    # Baltic States
+    "tallinn": "TLL",
+    "riga": "RIX",
+    "vilnius": "VNO",
+    # Greece
+    "athenes": "ATH",
+    "athens": "ATH",
+    "thessaloniki": "SKG",
+    "santorini": "JTR",
+    "mykonos": "JMK",
+    "heraklion": "HER",
+    "rhodes": "RHO",
+    "corfu": "CFU",
+    # Turkey
+    "istanbul": "SAW",
+    "antalya": "AYT",
+    "bodrum": "BJV",
+    # Cyprus
+    "larnaca": "LCA",
+    "paphos": "PFO",
+    # Malta
+    "malta": "MLA",
+    # Morocco
     "marrakech": "RAK",
     "fes": "FEZ",
     "fez": "FEZ",
@@ -46,35 +130,26 @@ CITY_AIRPORT_MAP = {
     "agadir": "AGA",
     "rabat": "RBA",
     "casablanca": "CMN",
+    "essaouira": "ESU",
+    # Algeria
     "alger": "ALG",
     "algiers": "ALG",
     "oran": "ORN",
+    # Tunisia
     "tunis": "TUN",
-    "malaga": "AGP",
-    "seville": "SVQ",
-    "palma": "PMI",
-    "ibiza": "IBZ",
-    "athenes": "ATH",
-    "athens": "ATH",
-    "budapest": "BUD",
-    "prague": "PRG",
-    "cracovie": "KRK",
-    "krakow": "KRK",
-    "varsovie": "WMI",
-    "warsaw": "WMI",
-    "bucarest": "OTP",
-    "bucharest": "OTP",
-    "sofia": "SOF",
-    "stockholm": "NYO",
-    "oslo": "TRF",
-    "copenhague": "CPH",
-    "copenhagen": "CPH",
+    # Egypt
+    "cairo": "CAI",
+    "le caire": "CAI",
+    "hurghada": "HRG",
+    "sharm el sheikh": "SSH",
+    # Middle East
+    "amman": "AMM",
+    "tel aviv": "TLV",
 }
 
 
 def _resolve_airport(city: str) -> str:
-    normalized = city.strip().lower()
-    return CITY_AIRPORT_MAP.get(normalized, normalized.upper()[:3])
+    return resolve_airport(city, CITY_AIRPORT_MAP)
 
 
 class RyanairScraper(ScraperBase):

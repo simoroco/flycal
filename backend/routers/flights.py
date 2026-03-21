@@ -123,7 +123,7 @@ def _search_to_dict(s: Search, db=None) -> dict:
         "date_to": s.date_to.isoformat() if s.date_to else "",
         "trip_type": s.trip_type,
         "airlines": airlines_list,
-        "created_at": s.created_at.isoformat() if s.created_at else "",
+        "created_at": (s.created_at.isoformat() + "Z") if s.created_at else "",
         "is_last": s.is_last,
         "flights": [_flight_to_dict(f, db=db) for f in s.flights],
     }
@@ -221,6 +221,12 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
                 logger.error(f"Scraper {airline_name} failed: {e}")
                 if airline_name != "Ryanair":
                     failed_airlines.append(airline_name)
+
+        # Airlines without direct scrapers go straight to Google Flights
+        for airline_name in airline_map:
+            if airline_name not in scraper_classes and airline_name not in failed_airlines:
+                failed_airlines.append(airline_name)
+                logger.info(f"No direct scraper for {airline_name}, queued for Google Flights")
 
         # Check abort before Phase 2
         if search_id in _abort_search_ids:

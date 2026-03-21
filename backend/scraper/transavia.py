@@ -12,11 +12,12 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from typing import List
 
-from .base import FlightResult, ScraperBase, make_route_not_served
+from .base import FlightResult, ScraperBase, make_route_not_served, resolve_airport
 
 logger = logging.getLogger("flycal.scraper.transavia")
 
 CITY_AIRPORT_MAP = {
+    # France
     "paris": "ORY",
     "orly": "ORY",
     "marseille": "MRS",
@@ -27,21 +28,76 @@ CITY_AIRPORT_MAP = {
     "bordeaux": "BOD",
     "lille": "LIL",
     "nice": "NCE",
+    "strasbourg": "SXB",
+    # Portugal
     "porto": "OPO",
     "lisbonne": "LIS",
     "lisbon": "LIS",
+    "faro": "FAO",
+    "funchal": "FNC",
+    # Spain
     "madrid": "MAD",
     "barcelone": "BCN",
     "barcelona": "BCN",
+    "malaga": "AGP",
+    "seville": "SVQ",
+    "valencia": "VLC",
+    "palma": "PMI",
+    "palma de mallorca": "PMI",
+    "ibiza": "IBZ",
+    "tenerife": "TFS",
+    "gran canaria": "LPA",
+    "alicante": "ALC",
+    # Italy
     "rome": "FCO",
     "milan": "MXP",
+    "venice": "VCE",
+    "naples": "NAP",
+    "florence": "FLR",
+    "bologna": "BLQ",
+    "turin": "TRN",
+    "catania": "CTA",
+    "bari": "BRI",
+    # United Kingdom
     "london": "LTN",
     "londres": "LTN",
+    # Ireland
     "dublin": "DUB",
+    # Netherlands
     "amsterdam": "AMS",
+    # Belgium
     "bruxelles": "BRU",
     "brussels": "BRU",
+    # Germany
     "berlin": "BER",
+    "munich": "MUC",
+    # Scandinavia
+    "copenhague": "CPH",
+    "copenhagen": "CPH",
+    "stockholm": "ARN",
+    # Eastern Europe
+    "prague": "PRG",
+    "budapest": "BUD",
+    "cracovie": "KRK",
+    "krakow": "KRK",
+    "bucarest": "OTP",
+    "bucharest": "OTP",
+    # Greece
+    "athenes": "ATH",
+    "athens": "ATH",
+    "santorini": "JTR",
+    "mykonos": "JMK",
+    "heraklion": "HER",
+    "rhodes": "RHO",
+    "corfu": "CFU",
+    # Turkey
+    "istanbul": "IST",
+    "antalya": "AYT",
+    "bodrum": "BJV",
+    "izmir": "ADB",
+    # Malta
+    "malta": "MLA",
+    # Morocco
     "marrakech": "RAK",
     "fes": "FEZ",
     "fez": "FEZ",
@@ -52,25 +108,23 @@ CITY_AIRPORT_MAP = {
     "agadir": "AGA",
     "casablanca": "CMN",
     "rabat": "RBA",
+    "essaouira": "ESU",
+    # Algeria
     "alger": "ALG",
     "algiers": "ALG",
     "oran": "ORN",
+    # Tunisia
     "tunis": "TUN",
-    "malaga": "AGP",
-    "seville": "SVQ",
-    "palma": "PMI",
-    "athenes": "ATH",
-    "athens": "ATH",
-    "budapest": "BUD",
-    "prague": "PRG",
-    "cracovie": "KRK",
-    "krakow": "KRK",
+    # Egypt
+    "cairo": "CAI",
+    "le caire": "CAI",
+    "hurghada": "HRG",
+    "sharm el sheikh": "SSH",
 }
 
 
 def _resolve_airport(city: str) -> str:
-    normalized = city.strip().lower()
-    return CITY_AIRPORT_MAP.get(normalized, normalized.upper()[:3])
+    return resolve_airport(city, CITY_AIRPORT_MAP)
 
 
 def _parse_gf_time(raw: str) -> str:

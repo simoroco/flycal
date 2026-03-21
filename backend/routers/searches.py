@@ -55,7 +55,7 @@ def _search_to_dict(s):
         "date_to": s.date_to.isoformat() if s.date_to else "",
         "trip_type": s.trip_type,
         "airlines": airlines_list,
-        "created_at": s.created_at.isoformat() if s.created_at else "",
+        "created_at": (s.created_at.isoformat() + "Z") if s.created_at else "",
         "is_last": s.is_last,
         "status": last_log.status if last_log else "unknown",
         "triggered_by": last_log.triggered_by if last_log else "manual",

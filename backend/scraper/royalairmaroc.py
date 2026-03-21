@@ -6,11 +6,12 @@ import re
 from datetime import date, timedelta
 from typing import List
 
-from .base import FlightResult, ScraperBase, make_route_not_served, parse_time, parse_price
+from .base import FlightResult, ScraperBase, make_route_not_served, parse_time, parse_price, resolve_airport
 
 logger = logging.getLogger("flycal.scraper.royalairmaroc")
 
 CITY_AIRPORT_MAP = {
+    # France
     "paris": "CDG",
     "cdg": "CDG",
     "orly": "ORY",
@@ -23,20 +24,103 @@ CITY_AIRPORT_MAP = {
     "montpellier": "MPL",
     "lille": "LIL",
     "strasbourg": "SXB",
+    # French Overseas
+    "pointe-a-pitre": "PTP",
+    "pointe a pitre": "PTP",
+    "fort-de-france": "FDF",
+    "fort de france": "FDF",
+    "cayenne": "CAY",
+    "saint-denis reunion": "RUN",
+    "saint denis reunion": "RUN",
+    # Portugal
     "porto": "OPO",
     "lisbonne": "LIS",
     "lisbon": "LIS",
+    "faro": "FAO",
+    "funchal": "FNC",
+    # Spain
     "madrid": "MAD",
     "barcelone": "BCN",
     "barcelona": "BCN",
+    "malaga": "AGP",
+    "seville": "SVQ",
+    "valencia": "VLC",
+    "palma": "PMI",
+    "palma de mallorca": "PMI",
+    "ibiza": "IBZ",
+    "tenerife": "TFS",
+    "gran canaria": "LPA",
+    "bilbao": "BIO",
+    "alicante": "ALC",
+    # Italy
     "rome": "FCO",
     "milan": "MXP",
+    "venice": "VCE",
+    "venise": "VCE",
+    "naples": "NAP",
+    "florence": "FLR",
+    "bologna": "BLQ",
+    "turin": "TRN",
+    "catania": "CTA",
+    "palermo": "PMO",
+    "bari": "BRI",
+    # United Kingdom
     "london": "LHR",
     "londres": "LHR",
+    "edinburgh": "EDI",
+    "manchester": "MAN",
+    "birmingham": "BHX",
+    "glasgow": "GLA",
+    "newcastle": "NCL",
+    # Ireland
+    "dublin": "DUB",
+    # Netherlands
     "amsterdam": "AMS",
+    # Belgium
     "bruxelles": "BRU",
     "brussels": "BRU",
+    # Germany
     "berlin": "BER",
+    "frankfurt": "FRA",
+    "francfort": "FRA",
+    "dusseldorf": "DUS",
+    "munich": "MUC",
+    "hamburg": "HAM",
+    "cologne": "CGN",
+    "stuttgart": "STR",
+    # Austria
+    "vienna": "VIE",
+    "vienne": "VIE",
+    # Switzerland
+    "zurich": "ZRH",
+    "geneva": "GVA",
+    "geneve": "GVA",
+    "basel": "BSL",
+    # Scandinavia
+    "copenhague": "CPH",
+    "copenhagen": "CPH",
+    "stockholm": "ARN",
+    "oslo": "OSL",
+    "helsinki": "HEL",
+    # Eastern Europe
+    "varsovie": "WAW",
+    "warsaw": "WAW",
+    "prague": "PRG",
+    "budapest": "BUD",
+    "bucarest": "OTP",
+    "bucharest": "OTP",
+    "sofia": "SOF",
+    "cracovie": "KRK",
+    "krakow": "KRK",
+    # Greece
+    "athenes": "ATH",
+    "athens": "ATH",
+    "thessaloniki": "SKG",
+    # Turkey
+    "istanbul": "IST",
+    "ankara": "ESB",
+    "antalya": "AYT",
+    # Morocco
     "marrakech": "RAK",
     "fes": "FEZ",
     "fez": "FEZ",
@@ -47,27 +131,56 @@ CITY_AIRPORT_MAP = {
     "agadir": "AGA",
     "oujda": "OUD",
     "nador": "NDR",
+    "essaouira": "ESU",
+    # Algeria
     "alger": "ALG",
     "algiers": "ALG",
     "oran": "ORN",
+    # Tunisia
     "tunis": "TUN",
-    "new york": "JFK",
-    "montreal": "YUL",
-    "dakar": "DSS",
-    "abidjan": "ABJ",
-    "athenes": "ATH",
-    "athens": "ATH",
-    "istanbul": "IST",
-    "dubai": "DXB",
-    "doha": "DOH",
+    # Egypt
     "le caire": "CAI",
     "cairo": "CAI",
+    "hurghada": "HRG",
+    "alexandria": "HBE",
+    "alexandrie": "HBE",
+    # Middle East
+    "dubai": "DXB",
+    "abu dhabi": "AUH",
+    "doha": "DOH",
+    "riyadh": "RUH",
+    "jeddah": "JED",
+    "amman": "AMM",
+    "beirut": "BEY",
+    "beyrouth": "BEY",
+    "tel aviv": "TLV",
+    # North America
+    "new york": "JFK",
+    "los angeles": "LAX",
+    "miami": "MIA",
+    "washington": "IAD",
+    "boston": "BOS",
+    "toronto": "YYZ",
+    "montreal": "YUL",
+    # South America
+    "sao paulo": "GRU",
+    "buenos aires": "EZE",
+    "rio de janeiro": "GIG",
+    # West Africa
+    "dakar": "DSS",
+    "abidjan": "ABJ",
+    "lagos": "LOS",
+    "accra": "ACC",
+    # East Africa
+    "nairobi": "NBO",
+    "addis ababa": "ADD",
+    # North Africa
+    "tripoli": "TIP",
 }
 
 
 def _resolve_airport(city: str) -> str:
-    normalized = city.strip().lower()
-    return CITY_AIRPORT_MAP.get(normalized, normalized.upper()[:3])
+    return resolve_airport(city, CITY_AIRPORT_MAP)
 
 
 class RoyalAirMarocScraper(ScraperBase):

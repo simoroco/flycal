@@ -6,11 +6,12 @@ import re
 from datetime import date, timedelta
 from typing import List
 
-from .base import FlightResult, ScraperBase, make_route_not_served, parse_time, parse_price
+from .base import FlightResult, ScraperBase, make_route_not_served, parse_time, parse_price, resolve_airport
 
 logger = logging.getLogger("flycal.scraper.airarabia")
 
 CITY_AIRPORT_MAP = {
+    # France
     "paris": "ORY",
     "marseille": "MRS",
     "lyon": "LYS",
@@ -20,14 +21,42 @@ CITY_AIRPORT_MAP = {
     "nice": "NCE",
     "montpellier": "MPL",
     "lille": "LIL",
-    "bruxelles": "BRU",
-    "brussels": "BRU",
-    "amsterdam": "AMS",
-    "london": "LGW",
-    "londres": "LGW",
+    "strasbourg": "SXB",
+    # Spain
     "barcelona": "BCN",
     "barcelone": "BCN",
     "madrid": "MAD",
+    "malaga": "AGP",
+    "valencia": "VLC",
+    "alicante": "ALC",
+    # Italy
+    "rome": "FCO",
+    "milan": "MXP",
+    "naples": "NAP",
+    "bologna": "BLQ",
+    # United Kingdom
+    "london": "LGW",
+    "londres": "LGW",
+    "manchester": "MAN",
+    # Belgium
+    "bruxelles": "BRU",
+    "brussels": "BRU",
+    # Netherlands
+    "amsterdam": "AMS",
+    # Germany
+    "berlin": "BER",
+    "frankfurt": "FRA",
+    "cologne": "CGN",
+    "dusseldorf": "DUS",
+    # Austria
+    "vienna": "VIE",
+    # Turkey
+    "istanbul": "SAW",
+    "antalya": "AYT",
+    # Greece
+    "athenes": "ATH",
+    "athens": "ATH",
+    # Morocco
     "marrakech": "RAK",
     "fes": "FEZ",
     "fez": "FEZ",
@@ -38,25 +67,48 @@ CITY_AIRPORT_MAP = {
     "agadir": "AGA",
     "casablanca": "CMN",
     "rabat": "RBA",
+    "essaouira": "ESU",
+    # Algeria
     "alger": "ALG",
     "algiers": "ALG",
     "oran": "ORN",
+    # Tunisia
     "tunis": "TUN",
+    # Egypt
     "cairo": "CAI",
     "le caire": "CAI",
+    "hurghada": "HRG",
+    "sharm el sheikh": "SSH",
+    "luxor": "LXR",
+    "alexandrie": "HBE",
+    "alexandria": "HBE",
+    # Middle East
     "dubai": "SHJ",
     "sharjah": "SHJ",
     "abu dhabi": "AUH",
-    "istanbul": "SAW",
     "amman": "AMM",
-    "alexandrie": "HBE",
-    "alexandria": "HBE",
+    "riyadh": "RUH",
+    "jeddah": "JED",
+    "muscat": "MCT",
+    "kuwait city": "KWI",
+    "bahrain": "BAH",
+    # South Asia
+    "islamabad": "ISB",
+    "karachi": "KHI",
+    "lahore": "LHE",
+    "dhaka": "DAC",
+    "kathmandu": "KTM",
+    "colombo": "CMB",
+    # East Africa
+    "nairobi": "NBO",
+    "addis ababa": "ADD",
+    "dar es salaam": "DAR",
+    "entebbe": "EBB",
 }
 
 
 def _resolve_airport(city: str) -> str:
-    normalized = city.strip().lower()
-    return CITY_AIRPORT_MAP.get(normalized, normalized.upper()[:3])
+    return resolve_airport(city, CITY_AIRPORT_MAP)
 
 
 class AirArabiaScraper(ScraperBase):

@@ -53,8 +53,8 @@ def crawler_status(db: Session = Depends(get_db)):
         "enabled": enabled,
         "crawler_time": crawler_time,
         "last_run": {
-            "started_at": last_log.started_at.isoformat() if last_log and last_log.started_at else None,
-            "ended_at": last_log.ended_at.isoformat() if last_log and last_log.ended_at else None,
+            "started_at": (last_log.started_at.isoformat() + "Z") if last_log and last_log.started_at else None,
+            "ended_at": (last_log.ended_at.isoformat() + "Z") if last_log and last_log.ended_at else None,
             "status": last_log.status if last_log else None,
             "error_msg": last_log.error_msg if last_log else None,
         } if last_log else None,
@@ -132,8 +132,8 @@ def get_logs(db: Session = Depends(get_db)):
             "triggered_by": log.triggered_by,
             "status": log.status,
             "error_msg": log.error_msg,
-            "started_at": log.started_at.isoformat() if log.started_at else None,
-            "ended_at": log.ended_at.isoformat() if log.ended_at else None,
+            "started_at": (log.started_at.isoformat() + "Z") if log.started_at else None,
+            "ended_at": (log.ended_at.isoformat() + "Z") if log.ended_at else None,
         }
         for log in logs
     ]

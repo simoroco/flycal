@@ -144,6 +144,22 @@ def _migrate_db():
             "Air France": "https://images.kiwi.com/airlines/64/AF.png",
             "Air Arabia": "https://images.kiwi.com/airlines/64/3O.png",
             "Royal Air Maroc": "https://images.kiwi.com/airlines/64/AT.png",
+            "American Airlines": "https://images.kiwi.com/airlines/64/AA.png",
+            "Emirates": "https://images.kiwi.com/airlines/64/EK.png",
+            "Qatar Airways": "https://images.kiwi.com/airlines/64/QR.png",
+            "Lufthansa": "https://images.kiwi.com/airlines/64/LH.png",
+            "Singapore Airlines": "https://images.kiwi.com/airlines/64/SQ.png",
+            "British Airways": "https://images.kiwi.com/airlines/64/BA.png",
+            "Air China": "https://images.kiwi.com/airlines/64/CA.png",
+            "Turkish Airlines": "https://images.kiwi.com/airlines/64/TK.png",
+            "EasyJet": "https://images.kiwi.com/airlines/64/U2.png",
+            "Vueling": "https://images.kiwi.com/airlines/64/VY.png",
+            "Finnair": "https://images.kiwi.com/airlines/64/AY.png",
+            "Air Caraibes": "https://images.kiwi.com/airlines/64/TX.png",
+            "TAP Air Portugal": "https://images.kiwi.com/airlines/64/TP.png",
+            "Iberia": "https://images.kiwi.com/airlines/64/IB.png",
+            "Corsair": "https://images.kiwi.com/airlines/64/SS.png",
+            "ITA Airways": "https://images.kiwi.com/airlines/64/AZ.png",
         }
         for name, url in defaults.items():
             cursor.execute("UPDATE airlines SET logo_url = ? WHERE name = ?", (url, name))
@@ -162,20 +178,75 @@ def init_db():
                         logo_url="https://images.kiwi.com/airlines/64/HV.png"),
                 Airline(name="Ryanair", fees_fixed=0.0, fees_percent=0.0, enabled=True,
                         logo_url="https://images.kiwi.com/airlines/64/FR.png"),
-                Airline(name="Air France", fees_fixed=0.0, fees_percent=0.0, enabled=True,
+                Airline(name="Air France", fees_fixed=0.0, fees_percent=0.0, enabled=False,
                         logo_url="https://images.kiwi.com/airlines/64/AF.png"),
                 Airline(name="Air Arabia", fees_fixed=0.0, fees_percent=0.0, enabled=True,
                         logo_url="https://images.kiwi.com/airlines/64/3O.png"),
-                Airline(name="Royal Air Maroc", fees_fixed=0.0, fees_percent=0.0, enabled=True,
+                Airline(name="Royal Air Maroc", fees_fixed=0.0, fees_percent=0.0, enabled=False,
                         logo_url="https://images.kiwi.com/airlines/64/AT.png"),
+                Airline(name="American Airlines", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/AA.png"),
+                Airline(name="Emirates", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/EK.png"),
+                Airline(name="Qatar Airways", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/QR.png"),
+                Airline(name="Lufthansa", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/LH.png"),
+                Airline(name="Singapore Airlines", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/SQ.png"),
+                Airline(name="British Airways", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/BA.png"),
+                Airline(name="Air China", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/CA.png"),
+                Airline(name="Turkish Airlines", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/TK.png"),
+                Airline(name="EasyJet", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/U2.png"),
+                Airline(name="Vueling", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/VY.png"),
+                Airline(name="Finnair", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/AY.png"),
+                Airline(name="Air Caraibes", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/TX.png"),
+                Airline(name="TAP Air Portugal", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/TP.png"),
+                Airline(name="Iberia", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/IB.png"),
+                Airline(name="Corsair", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/SS.png"),
+                Airline(name="ITA Airways", fees_fixed=0.0, fees_percent=0.0, enabled=False,
+                        logo_url="https://images.kiwi.com/airlines/64/AZ.png"),
             ]
             db.add_all(default_airlines)
             db.commit()
         else:
             existing_names = {a.name for a in db.query(Airline).all()}
-            if "Royal Air Maroc" not in existing_names:
-                db.add(Airline(name="Royal Air Maroc", fees_fixed=0.0, fees_percent=0.0, enabled=True))
-                db.commit()
+            new_airlines = {
+                "Royal Air Maroc": ("AT", False),
+                "American Airlines": ("AA", False),
+                "Emirates": ("EK", False),
+                "Qatar Airways": ("QR", False),
+                "Lufthansa": ("LH", False),
+                "Singapore Airlines": ("SQ", False),
+                "British Airways": ("BA", False),
+                "Air China": ("CA", False),
+                "Turkish Airlines": ("TK", False),
+                "EasyJet": ("U2", False),
+                "Vueling": ("VY", False),
+                "Finnair": ("AY", False),
+                "Air Caraibes": ("TX", False),
+                "TAP Air Portugal": ("TP", False),
+                "Iberia": ("IB", False),
+                "Corsair": ("SS", False),
+                "ITA Airways": ("AZ", False),
+            }
+            for name, (iata, enabled) in new_airlines.items():
+                if name not in existing_names:
+                    db.add(Airline(
+                        name=name, fees_fixed=0.0, fees_percent=0.0, enabled=enabled,
+                        logo_url=f"https://images.kiwi.com/airlines/64/{iata}.png",
+                    ))
+            db.commit()
 
         default_settings = {
             "smtp_host": "",
