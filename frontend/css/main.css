@@ -1002,7 +1002,7 @@ body {
 
 /* Logs */
 .logs-container {
-    max-height: 250px;
+    max-height: 500px;
     overflow-y: auto;
     background: rgba(0, 0, 0, 0.3);
     border-radius: var(--radius-sm);

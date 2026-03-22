@@ -122,7 +122,7 @@ def get_logs(db: Session = Depends(get_db)):
     logs = (
         db.query(CrawlerLog)
         .order_by(CrawlerLog.started_at.desc())
-        .limit(50)
+        .limit(100)
         .all()
     )
     return [
