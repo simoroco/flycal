@@ -69,8 +69,9 @@ def update_settings(data: SettingsUpdate, db: Session = Depends(get_db)):
 def test_smtp(db: Session = Depends(get_db)):
     from email_service import send_test_email
 
+    settings = _get_all_settings(db)
     try:
-        send_test_email()
+        send_test_email(settings)
         return {"ok": True, "message": "Test email sent successfully! Check your inbox."}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

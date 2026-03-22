@@ -40,15 +40,16 @@ def _get_settings():
         db.close()
 
 
-def send_test_email():
+def send_test_email(settings=None):
     """Send a real test email using the recap template with placeholder data."""
-    settings = _get_settings()
+    if settings is None:
+        settings = _get_settings()
 
-    host = settings.get("smtp_host", "")
-    port = int(settings.get("smtp_port", "587"))
-    user = settings.get("smtp_user", "")
-    password = settings.get("smtp_password", "")
-    to_email = settings.get("smtp_to", "")
+    host = settings.get("smtp_host", "") or ""
+    port = int(settings.get("smtp_port", 587) or 587)
+    user = settings.get("smtp_user", "") or ""
+    password = settings.get("smtp_password", "") or ""
+    to_email = settings.get("smtp_to", "") or ""
 
     if not host or not user or not to_email:
         raise ValueError("SMTP host, user and recipient are required")

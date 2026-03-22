@@ -286,7 +286,10 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
                     except Exception as am_err:
                         logger.warning(f"Amadeus fallback failed for {airline_name}: {am_err}")
 
-        db.query(Flight).filter(Flight.search_id == search_id).delete()
+        flight_ids = [f.id for f in db.query(Flight.id).filter(Flight.search_id == search_id).all()]
+        if flight_ids:
+            db.query(PriceHistory).filter(PriceHistory.flight_id.in_(flight_ids)).delete(synchronize_session=False)
+        db.query(Flight).filter(Flight.search_id == search_id).delete(synchronize_session=False)
         db.commit()
 
         route_not_served_airlines = set()
