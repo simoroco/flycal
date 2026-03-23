@@ -1,3 +1,18 @@
+/** Format an ISO date/datetime string as YYYY-MM-DD or YYYY-MM-DD HH:MM */
+function fmtDT(iso, timeOnly) {
+    if (!iso) return '—';
+    const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z');
+    if (isNaN(d)) return iso;
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const date = `${yyyy}-${mm}-${dd}`;
+    if (timeOnly === false) return date;
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${date} ${hh}:${mi}`;
+}
+
 const API = {
     BASE: '/api',
 

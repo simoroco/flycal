@@ -324,7 +324,7 @@ async function loadCrawlerInfo() {
                 const ts = status.target_search;
                 const airlines = (ts.airlines || []).join(', ');
                 const since = status.crawler_started_at
-                    ? new Date(status.crawler_started_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    ? fmtDT(status.crawler_started_at, false)
                     : '—';
                 targetInfo.innerHTML = `<p style="color:var(--accent);font-size:0.8rem">
                     <strong>${(ts.origin_city || '').toUpperCase()} → ${(ts.destination_city || '').toUpperCase()}</strong>
@@ -339,13 +339,13 @@ async function loadCrawlerInfo() {
 
         if (status.last_run && status.last_run.started_at) {
             const d = new Date(status.last_run.started_at);
-            lastRun.textContent = d.toLocaleString('en-US') + ' — ' + (status.last_run.status || '');
+            lastRun.textContent = fmtDT(status.last_run.started_at) + ' — ' + (status.last_run.status || '');
         } else {
             lastRun.textContent = '—';
         }
 
         nextRun.textContent = status.next_run
-            ? new Date(status.next_run).toLocaleString('en-US')
+            ? fmtDT(status.next_run)
             : '—';
     } catch (e) {
         console.error('Failed to load crawler info:', e);
@@ -363,7 +363,7 @@ async function toggleCrawler() {
         if (result.enabled && target) {
             const airlines = (target.airlines || []).join(', ');
             const nextStr = status.next_run
-                ? new Date(status.next_run).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+                ? fmtDT(status.next_run)
                 : crawlerTime;
             const msg = `Crawler enabled — daily at ${crawlerTime}\n`
                 + `${(target.origin_city||'').toUpperCase()} → ${(target.destination_city||'').toUpperCase()}\n`
@@ -403,7 +403,7 @@ async function loadLogs() {
         }
 
         container.innerHTML = logs.map(log => {
-            const time = log.started_at ? new Date(log.started_at).toLocaleString('en-US') : '—';
+            const time = log.started_at ? fmtDT(log.started_at) : '—';
             const statusColor = log.status === 'success' ? 'var(--green)' :
                                 log.status === 'error' ? 'var(--red)' :
                                 log.status === 'running' ? 'var(--orange)' : 'var(--text-muted)';

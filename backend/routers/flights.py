@@ -105,7 +105,7 @@ def _flight_to_dict(f: Flight, db=None) -> dict:
         )
         if oldest and oldest.price != f.price:
             result["oldest_price"] = oldest.price
-            result["oldest_price_date"] = oldest.recorded_at.strftime("%d/%m") if oldest.recorded_at else None
+            result["oldest_price_date"] = oldest.recorded_at.strftime("%Y-%m-%d") if oldest.recorded_at else None
     return result
 
 

@@ -29,6 +29,12 @@ async function init() {
     await checkForBackgroundSearch();
 }
 
+function syncDateDisplay(pickerId) {
+    const picker = document.getElementById(pickerId);
+    const display = document.getElementById(pickerId + 'Display');
+    if (picker && display) display.value = picker.value;
+}
+
 function setDefaultDates() {
     const today = new Date();
     const nextMonth = new Date(today);
@@ -40,6 +46,8 @@ function setDefaultDates() {
     // Set min attribute to prevent past dates
     dateFromEl.min = formatDateISO(today);
     dateToEl.min = formatDateISO(today);
+    syncDateDisplay('dateFrom');
+    syncDateDisplay('dateTo');
 }
 
 function setupDateConstraints() {
@@ -56,6 +64,8 @@ function setupDateConstraints() {
                 dateToEl.value = formatDateISO(nextDay);
             }
         }
+        syncDateDisplay('dateFrom');
+        syncDateDisplay('dateTo');
     });
 
     dateToEl.addEventListener('change', () => {
@@ -64,6 +74,7 @@ function setupDateConstraints() {
             nextDay.setDate(nextDay.getDate() + 1);
             dateToEl.value = formatDateISO(nextDay);
         }
+        syncDateDisplay('dateTo');
     });
 }
 
@@ -142,8 +153,8 @@ async function loadLastSearchInfo() {
         if (data && data.origin_city) {
             document.getElementById('originCity').value = (data.origin_city || '').toUpperCase();
             document.getElementById('destinationCity').value = (data.destination_city || '').toUpperCase();
-            if (data.date_from) document.getElementById('dateFrom').value = data.date_from;
-            if (data.date_to) document.getElementById('dateTo').value = data.date_to;
+            if (data.date_from) { document.getElementById('dateFrom').value = data.date_from; syncDateDisplay('dateFrom'); }
+            if (data.date_to) { document.getElementById('dateTo').value = data.date_to; syncDateDisplay('dateTo'); }
             // Set airline toggles to match the last search
             if (data.airlines && data.airlines.length > 0) {
                 const searchAirlines = data.airlines.map(a => a.toUpperCase());
@@ -184,8 +195,8 @@ async function checkForBackgroundSearch() {
                 // Populate search parameters in the UI
                 if (data.origin_city) document.getElementById('originCity').value = data.origin_city.toUpperCase();
                 if (data.destination_city) document.getElementById('destinationCity').value = data.destination_city.toUpperCase();
-                if (data.date_from) document.getElementById('dateFrom').value = data.date_from;
-                if (data.date_to) document.getElementById('dateTo').value = data.date_to;
+                if (data.date_from) { document.getElementById('dateFrom').value = data.date_from; syncDateDisplay('dateFrom'); }
+                if (data.date_to) { document.getElementById('dateTo').value = data.date_to; syncDateDisplay('dateTo'); }
 
                 // Set airline toggles to match the running search
                 if (data.airlines && data.airlines.length > 0) {
@@ -525,7 +536,7 @@ async function showCrawlerToggleNotification(enabled) {
         if (enabled && target) {
             msg += ` for ${(target.origin_city||'').toUpperCase()} → ${(target.destination_city||'').toUpperCase()}`;
             if (status.next_run) {
-                const next = new Date(status.next_run).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+                const next = fmtDT(status.next_run);
                 msg += ` — Next run: ${next}`;
             }
         }
@@ -554,6 +565,8 @@ function handleUrlParams() {
         document.getElementById('destinationCity').value = (params.get('destination') || '').toUpperCase();
         document.getElementById('dateFrom').value = params.get('date_from') || '';
         document.getElementById('dateTo').value = params.get('date_to') || '';
+        syncDateDisplay('dateFrom');
+        syncDateDisplay('dateTo');
 
         if (params.get('autorun') === '1') {
             window.history.replaceState({}, '', '/');
@@ -927,7 +940,7 @@ async function showPriceHistory(el, flightId) {
         if (history && history.length > 1) {
             dropdown.innerHTML = history.map(h => {
                 const date = new Date(h.recorded_at);
-                const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const dateStr = fmtDT(h.recorded_at);
                 return `<div class="ph-entry"><span class="ph-date">${dateStr}</span><span class="ph-price">${Math.round(h.price)}€</span></div>`;
             }).join('');
             dropdown.classList.remove('hidden');

@@ -123,9 +123,7 @@
 
             let html = '';
             for (const s of searches) {
-                const created = s.created_at ? new Date(s.created_at).toLocaleDateString('en-US', {
-                    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                }) : '—';
+                const created = s.created_at ? fmtDT(s.created_at) : '—';
 
                 const airlinesHtml = (s.airlines || []).map(name => {
                     const flight = (s.flights || []).find(f => f.airline_name === name && f.airline_logo_url);
@@ -299,7 +297,7 @@
                 if (result.enabled && target) {
                     msg += ` for ${(target.origin_city||'').toUpperCase()} → ${(target.destination_city||'').toUpperCase()}`;
                     if (status.next_run) {
-                        const next = new Date(status.next_run).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+                        const next = fmtDT(status.next_run);
                         msg += ` — Next: ${next}`;
                     }
                 }

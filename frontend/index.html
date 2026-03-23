@@ -43,9 +43,15 @@
                 </div>
                 <span class="search-divider"></span>
                 <span class="search-label">DATES:</span>
-                <input type="date" id="dateFrom" class="compact-input date-input">
+                <span class="date-wrapper">
+                    <input type="text" id="dateFromDisplay" class="compact-input date-input" readonly>
+                    <input type="date" id="dateFrom" class="date-hidden-picker">
+                </span>
                 <span class="compact-arrow">→</span>
-                <input type="date" id="dateTo" class="compact-input date-input">
+                <span class="date-wrapper">
+                    <input type="text" id="dateToDisplay" class="compact-input date-input" readonly>
+                    <input type="date" id="dateTo" class="date-hidden-picker">
+                </span>
                 <span class="search-divider"></span>
                 <span class="search-label">AIRLINES:</span>
                 <div class="airline-toggle-all" onclick="toggleAllAirlines()" title="Select / Deselect all">ALL</div>
