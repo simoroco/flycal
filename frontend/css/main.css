@@ -165,10 +165,9 @@ body {
 
 /* ── Compact Search Bar ── */
 .search-bar {
-    position: sticky;
-    top: 41px;
+    position: relative;
     z-index: 90;
-    padding: 8px 20px;
+    padding: 8px 0;
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
     background: rgba(10, 10, 15, 0.8);
@@ -182,12 +181,9 @@ body {
 }
 
 .search-bar-inner {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding-left: 0;
-    padding-right: 0;
-    margin-left: 0;
-    margin-right: 0;
+    max-width: none;
+    margin: 0;
+    padding: 0 25px;
 }
 
 .search-row-compact {
@@ -539,7 +535,7 @@ body {
 /* ── Recap Banner (sticky) ── */
 .recap-banner {
     position: sticky;
-    top: 89px;
+    top: 52px;
     z-index: 80;
     padding: 6px 20px;
     backdrop-filter: blur(var(--glass-blur));
