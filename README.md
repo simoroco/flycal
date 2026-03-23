@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <em>A self-hosted flight price comparator with a visual calendar interface, automatic crawling, and price history tracking.</em><br>
+  <em>A self-hosted flight price planner with a visual calendar interface, automatic crawling, and price history tracking.</em><br>
   <em>Scrapes airline websites, stores historical prices, and presents results in a dark-mode Liquid Glass UI.</em>
 </p>
 

@@ -729,15 +729,16 @@ function startPolling(searchId) {
         }
     }, 3000);
 
-    // Timeout after 5 minutes
+    // Timeout after 30 minutes (safety net — polling stops naturally when backend finishes)
     setTimeout(() => {
         if (pollingTimer) {
-            console.log('[FlyCal Crawler] Search timed out after 5 minutes');
+            console.log('[FlyCal Crawler] Search timed out after 30 minutes');
             clearInterval(pollingTimer);
             pollingTimer = null;
             hideSearchingState();
+            Toast.warning('Search timed out after 30 minutes');
         }
-    }, 300000);
+    }, 1800000);
 }
 
 // ── Auto-select best flights: earliest outbound, latest return ──

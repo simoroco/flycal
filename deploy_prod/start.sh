@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-echo "=== FlyCal — Flight Calendar Comparator ==="
+echo "=== FlyCal — Flight Planner ==="
 echo "Starting deployment..."
 
 # Ensure data directory exists
