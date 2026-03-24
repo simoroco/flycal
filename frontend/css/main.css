@@ -221,7 +221,7 @@ body {
     display: inline-block;
 }
 .date-input {
-    width: 95px;
+    width: 100px;
     cursor: pointer;
 }
 .date-hidden-picker {
@@ -535,7 +535,7 @@ body {
 /* ── Recap Banner (sticky) ── */
 .recap-banner {
     position: sticky;
-    top: 52px;
+    top: 51px;
     z-index: 80;
     padding: 6px 20px;
     backdrop-filter: blur(var(--glass-blur));
