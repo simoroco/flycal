@@ -292,9 +292,23 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
         db.query(Flight).filter(Flight.search_id == search_id).delete(synchronize_session=False)
         db.commit()
 
+        # Deduplicate flights (same airline + direction + date + times + airports)
+        seen = set()
+        deduped_results = []
+        for airline_name, result in all_results:
+            if getattr(result, "route_not_served", False):
+                deduped_results.append((airline_name, result))
+                continue
+            key = (airline_name, result.direction, str(result.flight_date),
+                   result.departure_time, result.arrival_time,
+                   result.origin_airport, result.destination_airport)
+            if key not in seen:
+                seen.add(key)
+                deduped_results.append((airline_name, result))
+
         route_not_served_airlines = set()
         now = datetime.utcnow()
-        for airline_name, result in all_results:
+        for airline_name, result in deduped_results:
             airline = airline_map.get(airline_name)
             if not airline:
                 continue
