@@ -166,6 +166,20 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
         search = db.query(Search).filter(Search.id == search_id).first()
         if not search:
             logger.warning(f"Search {search_id} not found, aborting scrape")
+            # Create log entry for audit trail even when search is missing
+            orphan_log = CrawlerLog(
+                search_id=search_id,
+                triggered_by=triggered_by,
+                status="error",
+                error_msg=f"Search {search_id} not found",
+                started_at=datetime.utcnow(),
+                ended_at=datetime.utcnow(),
+            )
+            try:
+                db.add(orphan_log)
+                db.commit()
+            except Exception:
+                db.rollback()
             return
 
         log_entry = CrawlerLog(
@@ -202,6 +216,8 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
         all_results = []
         failed_airlines = []
 
+        SCRAPER_TIMEOUT = 300  # 5 min max per individual scraper
+
         # Phase 1: Try direct scrapers
         for airline_name, scraper_cls in scraper_classes.items():
             if search_id in _abort_search_ids:
@@ -211,12 +227,15 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
                 continue
             try:
                 scraper = scraper_cls()
-                results = await scraper.search(
-                    origin_city=search.origin_city,
-                    destination_city=search.destination_city,
-                    date_from=search.date_from,
-                    date_to=search.date_to,
-                    trip_type=search.trip_type,
+                results = await asyncio.wait_for(
+                    scraper.search(
+                        origin_city=search.origin_city,
+                        destination_city=search.destination_city,
+                        date_from=search.date_from,
+                        date_to=search.date_to,
+                        trip_type=search.trip_type,
+                    ),
+                    timeout=SCRAPER_TIMEOUT,
                 )
                 real_flights = [r for r in results if not getattr(r, "route_not_served", False)]
                 if real_flights:
@@ -226,6 +245,10 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
                     logger.info(f"Direct scraper for {airline_name} found no flights, queued for Google Flights")
                 else:
                     all_results.extend((airline_name, r) for r in results)
+            except asyncio.TimeoutError:
+                logger.error(f"Scraper {airline_name} timed out after {SCRAPER_TIMEOUT}s")
+                if airline_name != "Ryanair":
+                    failed_airlines.append(airline_name)
             except Exception as e:
                 logger.error(f"Scraper {airline_name} failed: {e}")
                 if airline_name != "Ryanair":
@@ -372,17 +395,27 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
                 log_entry.error_msg = "route_not_served:" + ",".join(sorted(route_not_served_airlines))
             db.commit()
 
+        post_errors = []
         try:
             from alert_engine import check_alerts
             check_alerts(db)
         except Exception as e:
             logger.error(f"Alert checking failed: {e}")
+            post_errors.append(f"alerts:{e}")
 
         try:
             from email_service import send_crawl_recap
             send_crawl_recap(search_id)
         except Exception as e:
             logger.error(f"Email recap failed: {e}")
+            post_errors.append(f"email:{e}")
+
+        # Append post-scrape errors to log entry so they're visible in UI
+        if post_errors and log_entry:
+            existing = log_entry.error_msg or ""
+            suffix = " | post:" + "; ".join(post_errors)
+            log_entry.error_msg = (existing + suffix)[:500]
+            db.commit()
 
     except Exception as e:
         logger.error(f"Scraping failed for search {search_id}: {e}")
@@ -394,6 +427,26 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
             log_entry.error_msg = str(e)[:500]
             log_entry.ended_at = datetime.utcnow()
             db.commit()
+
+        # Restore is_last to the most recent search that has results
+        try:
+            flight_count = db.query(Flight).filter(Flight.search_id == search_id).count()
+            if flight_count == 0:
+                db.query(Search).filter(Search.id == search_id).update({"is_last": False})
+                prev = (
+                    db.query(Search)
+                    .filter(Search.id != search_id, Search.flights.any())
+                    .order_by(Search.id.desc())
+                    .first()
+                )
+                if prev:
+                    prev.is_last = True
+                    logger.info(f"Restored is_last to search #{prev.id} after failed/cancelled search #{search_id}")
+                db.commit()
+        except Exception as restore_err:
+            logger.error(f"Failed to restore is_last: {restore_err}")
+            db.rollback()
+
     finally:
         with _abort_lock:
             _abort_search_ids.discard(search_id)
