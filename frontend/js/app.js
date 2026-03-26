@@ -915,6 +915,12 @@ function renderDayFlights(flights, direction, isDimmed) {
             html += `<span class="flight-row-duration">${duration}</span>`;
         }
         html += `<span class="flight-row-airports">${f.origin_airport || '???'}→${f.destination_airport || '???'}</span>`;
+
+        const rawPrice = f.price;
+        const fixedFees = f.airline_fees_fixed || 0;
+        const pctFees = rawPrice * (f.airline_fees_percent || 0) / 100;
+        const totalPrice = rawPrice + fixedFees + pctFees;
+
         html += `<span class="flight-row-prices">`;
         if (f.oldest_price != null && f.oldest_price !== f.price) {
             const diff = f.price - f.oldest_price;
@@ -922,7 +928,9 @@ function renderDayFlights(flights, direction, isDimmed) {
             const cls = diff < 0 ? 'price-down' : 'price-up';
             html += `<span class="flight-row-old-price ${cls}">${arrow} ${Math.round(f.oldest_price)}€ (${f.oldest_price_date})</span>`;
         }
-        html += `<span class="flight-row-price">${Math.round(f.price)}€</span>`;
+        const hasFees = Math.round(totalPrice) !== Math.round(rawPrice);
+        html += `<span class="flight-row-raw-price">${hasFees ? '(' + Math.round(rawPrice) + '€)' : ''}</span>`;
+        html += `<span class="flight-row-price">${Math.round(totalPrice)}€</span>`;
         html += `</span>`;
 
         html += `<div class="price-history-dropdown hidden"></div>`;

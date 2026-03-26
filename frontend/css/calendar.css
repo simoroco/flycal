@@ -125,18 +125,24 @@
     color: var(--text);
     white-space: nowrap;
     flex-shrink: 0;
+    width: 100px;
+    text-align: left;
 }
 
 .flight-row-duration {
     font-size: 0.65rem;
     color: var(--text-muted);
     flex-shrink: 0;
+    width: 36px;
+    text-align: center;
 }
 
 .flight-row-airports {
     font-size: 0.68rem;
     color: var(--text-muted);
     flex-shrink: 0;
+    width: 70px;
+    text-align: left;
 }
 
 .flight-row-prices {
@@ -145,12 +151,25 @@
     display: flex;
     align-items: center;
     gap: 4px;
+    justify-content: flex-end;
+}
+
+.flight-row-raw-price {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    white-space: nowrap;
+    width: 42px;
+    text-align: right;
 }
 
 .flight-row-price {
     font-weight: 700;
     color: var(--text);
     flex-shrink: 0;
+    width: 42px;
+    text-align: right;
+    white-space: nowrap;
 }
 
 /* ── Price History Dropdown ── */
