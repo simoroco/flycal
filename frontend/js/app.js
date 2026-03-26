@@ -171,6 +171,7 @@ async function loadLastSearchInfo() {
             if (data.flights && data.flights.length > 0 && !isSearching) {
                 allFlights = data.flights;
                 currentSearchId = data.id;
+                restoreSelectedFlights();
                 renderFlights();
                 autoSelectBestFlights();
             }
@@ -662,6 +663,7 @@ async function launchSearch() {
 
     selectedOutbound = null;
     selectedReturn = null;
+    localStorage.removeItem('flycal_selected_flights');
     allFlights = [];
     renderFlights();
     showSearchingState();
@@ -754,6 +756,35 @@ function startPolling(searchId) {
     }, 1800000);
 }
 
+// ── Persist selected flights across sessions ──
+function saveSelectedFlights() {
+    const data = {
+        outboundId: selectedOutbound ? selectedOutbound.id : null,
+        returnId: selectedReturn ? selectedReturn.id : null,
+        searchId: currentSearchId
+    };
+    localStorage.setItem('flycal_selected_flights', JSON.stringify(data));
+}
+
+function restoreSelectedFlights() {
+    try {
+        const raw = localStorage.getItem('flycal_selected_flights');
+        if (!raw) return false;
+        const data = JSON.parse(raw);
+        if (data.searchId !== currentSearchId) return false;
+        let restored = false;
+        if (data.outboundId && !selectedOutbound) {
+            const f = allFlights.find(fl => fl.id === data.outboundId);
+            if (f) { selectedOutbound = f; restored = true; }
+        }
+        if (data.returnId && !selectedReturn) {
+            const f = allFlights.find(fl => fl.id === data.returnId);
+            if (f) { selectedReturn = f; restored = true; }
+        }
+        return restored;
+    } catch (e) { return false; }
+}
+
 // ── Auto-select best flights: earliest outbound, latest return ──
 function autoSelectBestFlights() {
     if (selectedOutbound && selectedReturn) return;
@@ -777,6 +808,7 @@ function autoSelectBestFlights() {
         selectedReturn = sorted[0];
     }
 
+    saveSelectedFlights();
     renderFlights();
 }
 
@@ -976,6 +1008,7 @@ function handleFlightClick(flightId, direction) {
         selectedReturn = (selectedReturn && selectedReturn.id === flightId) ? null : flight;
     }
 
+    saveSelectedFlights();
     renderFlights();
 }
 
