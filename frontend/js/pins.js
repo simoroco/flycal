@@ -3,10 +3,7 @@
 let allPins = [];
 const chartInstances = {};
 
-// ── Init ──
-async function init() {
-    await loadPins();
-}
+async function init() { await loadPins(); }
 
 async function loadPins() {
     try {
@@ -19,353 +16,213 @@ async function loadPins() {
 }
 
 function renderPins() {
-    const container = document.getElementById('pinsContent');
+    const c = document.getElementById('pinsContent');
     if (!allPins.length) {
-        container.innerHTML = '<div class="pins-empty">No pinned flights yet.<br>Double-click or right-click a flight on the Scan page to pin it.</div>';
+        c.innerHTML = '<div class="pins-empty">No pinned flights yet.<br>Double-click or right-click a flight on the Scan page to pin it.</div>';
         return;
     }
-    container.innerHTML = allPins.map(pin => renderPinCard(pin)).join('');
-
-    // Render charts after DOM is ready
-    for (const pin of allPins) {
-        renderPriceChart(`chart-pin-${pin.id}`, pin);
-    }
+    c.innerHTML = `<div class="pins-grid">${allPins.map(renderPinCard).join('')}</div>`;
+    for (const pin of allPins) renderPriceChart(`chart-${pin.id}`, pin);
 }
 
+// ── Card ──
 function renderPinCard(pin) {
-    const currentPrice = pin.current_price != null ? `${Math.round(pin.current_price)}€` : '—';
-    const oldestPrice = pin.oldest_price != null ? `${Math.round(pin.oldest_price)}€` : '—';
-    const oldestDate = pin.oldest_price_date ? pin.oldest_price_date.split('T')[0] : '';
-    let changeHtml = '';
+    const cur = pin.current_price != null ? Math.round(pin.current_price) + '€' : '—';
+    const old = pin.oldest_price != null ? Math.round(pin.oldest_price) + '€' : '—';
+    const oldDate = pin.oldest_price_date ? pin.oldest_price_date.split('T')[0] : '';
+    let chg = '';
     if (pin.current_price != null && pin.oldest_price != null && pin.oldest_price !== pin.current_price) {
-        const diff = pin.current_price - pin.oldest_price;
-        const pct = ((diff / pin.oldest_price) * 100).toFixed(0);
-        const arrow = diff < 0 ? '↓' : '↑';
-        const cls = diff < 0 ? 'down' : 'up';
-        changeHtml = `<span class="pin-price-change ${cls}">${arrow}${Math.abs(Math.round(diff))}€ (${pct}%)</span>`;
+        const d = pin.current_price - pin.oldest_price;
+        const p = ((d / pin.oldest_price) * 100).toFixed(0);
+        chg = `<span class="pin-change ${d < 0 ? 'down' : 'up'}">${d < 0 ? '↓' : '↑'}${Math.abs(Math.round(d))}€ (${p}%)</span>`;
     }
-
-    const dirBadge = `<span class="pin-direction-badge ${pin.direction}">${pin.direction === 'outbound' ? 'OUT' : 'RET'}</span>`;
-    const alertsHtml = renderAlertSection(pin);
+    const dir = pin.direction === 'outbound' ? 'OUT' : 'RET';
 
     return `
     <div class="pin-card" data-pin-id="${pin.id}">
         <div class="pin-top-band">
             ${pin.airline_logo_url ? `<img src="${pin.airline_logo_url}" class="pin-logo" onerror="this.style.display='none'">` : ''}
             <span class="pin-airline">${pin.airline_name}</span>
-            ${dirBadge}
-            <span class="pin-route">${pin.origin_airport} → ${pin.destination_airport}</span>
+            <span class="pin-dir ${pin.direction}">${dir}</span>
+            <span class="pin-route">${pin.origin_airport}→${pin.destination_airport}</span>
             <span class="pin-sep">|</span>
-            <span class="pin-info">${pin.flight_date} ${pin.departure_time}</span>
+            <span class="pin-val">${pin.flight_date} ${pin.departure_time}</span>
             <span class="pin-sep">|</span>
-            <span class="pin-info"><span class="pin-info-label">Start</span><span class="pin-info-value">${oldestPrice}</span> <span style="color:var(--text-muted);font-size:0.65rem">${oldestDate}</span></span>
+            <span class="pin-val"><span class="pin-lbl">Start</span><span class="pin-num">${old}</span> <span style="color:var(--text-muted);font-size:0.6rem">${oldDate}</span></span>
             <span class="pin-sep">|</span>
-            <span class="pin-info"><span class="pin-info-label">Now</span><span class="pin-info-value">${currentPrice}</span> ${changeHtml}</span>
-            <span class="pin-sep">|</span>
-            <span class="pin-info" style="color:var(--text-muted)">${pin.price_data_points} pts</span>
+            <span class="pin-val"><span class="pin-lbl">Now</span><span class="pin-num">${cur}</span>${chg}</span>
             <div class="pin-actions">
                 <button class="btn-sm btn-danger" onclick="unpinFlight(${pin.id})">Unpin</button>
-                <a href="/" class="btn-sm btn-ghost" style="text-decoration:none">Scan</a>
+                <a href="/" class="btn-sm btn-ghost">Scan</a>
             </div>
         </div>
-        <div class="pin-chart-container">
-            <canvas id="chart-pin-${pin.id}"></canvas>
+        <div class="pin-chart"><canvas id="chart-${pin.id}"></canvas></div>
+        <div class="pin-alerts" id="alerts-${pin.id}">
+            ${renderAlerts(pin)}
         </div>
-        ${alertsHtml}
     </div>`;
 }
 
-// ── Chart rendering ──
-async function renderPriceChart(canvasId, pin) {
-    try {
-        const data = await API.getPinPriceHistory(pin.id);
-        const canvas = document.getElementById(canvasId);
-        if (!canvas) return;
-
-        if (data.length === 0) {
-            canvas.parentElement.innerHTML = '<div class="pin-chart-empty">No price data available yet.</div>';
-            return;
-        }
-
-        const labels = data.map(d => {
-            const dt = new Date(d.recorded_at);
-            return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
-        });
-        const prices = data.map(d => d.price);
-
-        // Projection via linear regression if >= 3 points
-        let projLabels = [];
-        let projPrices = [];
-        if (data.length >= 3) {
-            const reg = linearRegression(data.map((d, i) => ({ x: i, y: d.price })));
-            const lastDate = new Date(data[data.length - 1].recorded_at);
-            const flightDate = new Date(pin.flight_date + 'T00:00:00');
-            const daysBetween = Math.max(1, Math.ceil((flightDate - lastDate) / 86400000));
-            const steps = Math.min(daysBetween, 30); // max 30 projection points
-
-            projLabels.push(labels[labels.length - 1]);
-            projPrices.push(prices[prices.length - 1]);
-
-            for (let s = 1; s <= steps; s++) {
-                const projDate = new Date(lastDate.getTime() + s * 86400000);
-                projLabels.push(`${projDate.getFullYear()}-${String(projDate.getMonth()+1).padStart(2,'0')}-${String(projDate.getDate()).padStart(2,'0')}`);
-                const projPrice = reg.intercept + reg.slope * (data.length - 1 + s);
-                projPrices.push(Math.max(0, Math.round(projPrice * 100) / 100));
-            }
-        }
-
-        const allLabels = [...new Set([...labels, ...projLabels])];
-
-        // Destroy old chart
-        if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
-
-        const datasets = [
-            {
-                label: 'Price (€)',
-                data: labels.map((l, i) => ({ x: l, y: prices[i] })),
-                borderColor: '#6c63ff',
-                backgroundColor: 'rgba(108, 99, 255, 0.1)',
-                borderWidth: 2,
-                pointRadius: 3,
-                pointBackgroundColor: '#6c63ff',
-                tension: 0.1,
-                fill: true,
-            }
-        ];
-
-        if (projPrices.length > 1) {
-            datasets.push({
-                label: 'Projection',
-                data: projLabels.map((l, i) => ({ x: l, y: projPrices[i] })),
-                borderColor: '#6c63ff',
-                borderWidth: 2,
-                borderDash: [5, 5],
-                pointRadius: 0,
-                tension: 0.1,
-                fill: false,
-            });
-        }
-
-        chartInstances[canvasId] = new Chart(canvas, {
-            type: 'line',
-            data: { datasets },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: {
-                        type: 'category',
-                        labels: allLabels,
-                        ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 }, maxTicksLimit: 8 },
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                    },
-                    y: {
-                        ticks: {
-                            color: 'rgba(255,255,255,0.4)',
-                            font: { size: 10 },
-                            callback: v => v + '€',
-                        },
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                    }
-                },
-                plugins: {
-                    legend: { display: true, labels: { color: 'rgba(255,255,255,0.5)', font: { size: 10 } } },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}€`
-                        }
-                    }
-                }
-            }
-        });
-    } catch (e) {
-        console.error('Chart error:', e);
-    }
-}
-
-function linearRegression(points) {
-    const n = points.length;
-    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-    for (const p of points) {
-        sumX += p.x;
-        sumY += p.y;
-        sumXY += p.x * p.y;
-        sumX2 += p.x * p.x;
-    }
-    const denom = n * sumX2 - sumX * sumX;
-    if (denom === 0) return { slope: 0, intercept: sumY / n };
-    const slope = (n * sumXY - sumX * sumY) / denom;
-    const intercept = (sumY - slope * sumX) / n;
-    return { slope, intercept };
-}
-
-// ── Unpin ──
-async function unpinFlight(pinId) {
-    try {
-        await API.deletePin(pinId);
-        allPins = allPins.filter(p => p.id !== pinId);
-        renderPins();
-        Toast.success('Flight unpinned');
-    } catch (e) {
-        Toast.error('Unpin failed: ' + e.message);
-    }
-}
-
-// ── Alert section ──
-function renderAlertSection(pin) {
-    const alertCount = pin.alerts ? pin.alerts.length : 0;
-    const alertsList = (pin.alerts || []).map(a => {
-        const text = describeAlert(a);
-        const enabledIcon = a.enabled ? '●' : '○';
-        const enabledColor = a.enabled ? 'var(--green)' : 'var(--text-muted)';
-        return `
-        <div class="alert-rule">
-            <span style="color:${enabledColor};font-size:0.6rem">${enabledIcon}</span>
-            <span class="alert-rule-text">${text}</span>
-            <span class="alert-rule-cooldown">${formatCooldown(a.cooldown)}</span>
-            <span class="alert-rule-actions">
-                <button class="alert-toggle-btn" onclick="toggleAlert(${pin.id}, ${a.id}, ${!a.enabled})" title="${a.enabled ? 'Disable' : 'Enable'}">${a.enabled ? 'Pause' : 'Resume'}</button>
-                <button class="alert-delete-btn" onclick="deleteAlert(${pin.id}, ${a.id})">Delete</button>
-            </span>
+// ── Alerts ──
+function renderAlerts(pin) {
+    const existing = (pin.alerts || []).map(a => {
+        const dot = a.enabled ? '<span style="color:var(--green)">●</span>' : '<span style="color:var(--text-muted)">○</span>';
+        return `<div class="alert-row">
+            ${dot}
+            <span class="alert-row-text">${describeAlert(a)}</span>
+            <span class="alert-row-cd">${fmtCd(a.cooldown)}</span>
+            <button class="abtn" onclick="toggleAlert(${pin.id},${a.id},${!a.enabled})">${a.enabled ? 'Pause' : 'Resume'}</button>
+            <button class="abtn del" onclick="deleteAlert(${pin.id},${a.id})">✕</button>
         </div>`;
     }).join('');
 
-    return `
-    <div class="pin-alerts-section">
-        <div class="pin-alerts-header" onclick="toggleAlertSection(this)">
-            <span class="pin-alerts-title">Alerts (${alertCount})</span>
-            <span class="pin-alerts-toggle">▼</span>
-        </div>
-        <div class="pin-alerts-body">
-            ${alertsList}
-            <button class="btn-sm btn-accent" style="margin-top:8px" onclick="showAlertForm(${pin.id}, this)">+ Add Alert</button>
-        </div>
-    </div>`;
-}
-
-function describeAlert(a) {
-    if (a.alert_type === 'threshold') {
-        const op = a.operator === 'lt' ? '<' : '>';
-        const unit = a.value_is_percent ? '%' : '€';
-        return `Price ${op} ${a.value}${unit}`;
-    }
-    if (a.alert_type === 'variation') {
-        return `Price changes by more than ${a.value}%`;
-    }
-    if (a.alert_type === 'trend_start') {
-        return `Price starts ${a.operator === 'decrease' ? 'decreasing' : 'increasing'}`;
-    }
-    return a.alert_type;
-}
-
-function formatCooldown(c) {
-    const map = {
-        'once_only': 'Once',
-        'every_scan': 'Every scan',
-        'once_per_day': 'Daily',
-        'once_per_week': 'Weekly',
-    };
-    return map[c] || c;
-}
-
-function toggleAlertSection(header) {
-    const body = header.nextElementSibling;
-    body.classList.toggle('open');
-    const toggle = header.querySelector('.pin-alerts-toggle');
-    toggle.textContent = body.classList.contains('open') ? '▲' : '▼';
-}
-
-function showAlertForm(pinId, btn) {
-    const existing = btn.parentElement.querySelector('.alert-form');
-    if (existing) { existing.remove(); return; }
-
-    const form = document.createElement('div');
-    form.className = 'alert-form';
-    form.innerHTML = `
-        <select id="alertType_${pinId}" onchange="updateAlertFormFields(${pinId})">
+    // Always show the inline add form
+    return `${existing}
+    <div class="alert-add" id="alertForm-${pin.id}">
+        <select id="aType-${pin.id}" onchange="updateFields(${pin.id})">
             <option value="threshold">Threshold</option>
             <option value="variation">Variation %</option>
             <option value="trend_start">Trend</option>
         </select>
-        <span id="alertFields_${pinId}" style="display:contents">
-            <select id="alertOp_${pinId}"><option value="lt">&lt;</option><option value="gt">&gt;</option></select>
-            <input type="number" id="alertVal_${pinId}" placeholder="60" step="1">
-            <label style="display:flex;align-items:center;gap:2px"><input type="checkbox" id="alertPct_${pinId}">%</label>
+        <span id="aFields-${pin.id}" style="display:contents">
+            <select id="aOp-${pin.id}"><option value="lt">&lt;</option><option value="gt">&gt;</option></select>
+            <input type="number" id="aVal-${pin.id}" placeholder="60" step="1">
+            <label><input type="checkbox" id="aPct-${pin.id}">%</label>
         </span>
-        <select id="alertCooldown_${pinId}">
+        <select id="aCd-${pin.id}">
             <option value="every_scan">Every scan</option>
             <option value="once_per_day">Daily</option>
             <option value="once_per_week">Weekly</option>
             <option value="once_only">Once</option>
         </select>
-        <button class="btn-sm btn-accent" onclick="saveNewAlert(${pinId})">Save</button>
-        <button class="btn-sm btn-ghost" onclick="this.closest('.alert-form').remove()">✕</button>
-    `;
-    btn.parentElement.appendChild(form);
+        <button class="abtn add" onclick="saveAlert(${pin.id})">+</button>
+    </div>`;
 }
 
-function updateAlertFormFields(pinId) {
-    const type = document.getElementById(`alertType_${pinId}`).value;
-    const container = document.getElementById(`alertFields_${pinId}`);
+function describeAlert(a) {
+    if (a.alert_type === 'threshold') return `Price ${a.operator === 'lt' ? '<' : '>'} ${a.value}${a.value_is_percent ? '%' : '€'}`;
+    if (a.alert_type === 'variation') return `Variation > ${a.value}%`;
+    if (a.alert_type === 'trend_start') return `Trend ${a.operator === 'decrease' ? '↓' : '↑'}`;
+    return a.alert_type;
+}
+function fmtCd(c) { return {once_only:'Once',every_scan:'Every scan',once_per_day:'Daily',once_per_week:'Weekly'}[c]||c; }
+
+function updateFields(pinId) {
+    const type = document.getElementById(`aType-${pinId}`).value;
+    const c = document.getElementById(`aFields-${pinId}`);
     if (type === 'threshold') {
-        container.innerHTML = `
-            <select id="alertOp_${pinId}"><option value="lt">&lt;</option><option value="gt">&gt;</option></select>
-            <input type="number" id="alertVal_${pinId}" placeholder="60" step="1">
-            <label style="display:flex;align-items:center;gap:2px"><input type="checkbox" id="alertPct_${pinId}">%</label>`;
+        c.innerHTML = `<select id="aOp-${pinId}"><option value="lt">&lt;</option><option value="gt">&gt;</option></select>
+            <input type="number" id="aVal-${pinId}" placeholder="60" step="1">
+            <label><input type="checkbox" id="aPct-${pinId}">%</label>`;
     } else if (type === 'variation') {
-        container.innerHTML = `<input type="number" id="alertVal_${pinId}" placeholder="10" step="1"><label>%</label>`;
-    } else if (type === 'trend_start') {
-        container.innerHTML = `<select id="alertOp_${pinId}"><option value="decrease">↓ Decreasing</option><option value="increase">↑ Increasing</option></select>`;
+        c.innerHTML = `<input type="number" id="aVal-${pinId}" placeholder="10" step="1"><label>%</label>`;
+    } else {
+        c.innerHTML = `<select id="aOp-${pinId}"><option value="decrease">↓ Down</option><option value="increase">↑ Up</option></select>`;
     }
 }
 
-async function saveNewAlert(pinId) {
-    const type = document.getElementById(`alertType_${pinId}`).value;
-    const data = {
-        alert_type: type,
-        logic_group: 0,
-        cooldown: document.getElementById(`alertCooldown_${pinId}`).value,
-        enabled: true,
-    };
-
+async function saveAlert(pinId) {
+    const type = document.getElementById(`aType-${pinId}`).value;
+    const data = { alert_type: type, logic_group: 0, cooldown: document.getElementById(`aCd-${pinId}`).value, enabled: true };
     if (type === 'threshold') {
-        data.operator = document.getElementById(`alertOp_${pinId}`).value;
-        data.value = parseFloat(document.getElementById(`alertVal_${pinId}`).value);
-        const pctEl = document.getElementById(`alertPct_${pinId}`);
-        data.value_is_percent = pctEl ? pctEl.checked : false;
+        data.operator = document.getElementById(`aOp-${pinId}`).value;
+        data.value = parseFloat(document.getElementById(`aVal-${pinId}`).value);
+        const p = document.getElementById(`aPct-${pinId}`);
+        data.value_is_percent = p ? p.checked : false;
     } else if (type === 'variation') {
-        data.value = parseFloat(document.getElementById(`alertVal_${pinId}`).value);
-    } else if (type === 'trend_start') {
-        data.operator = document.getElementById(`alertOp_${pinId}`).value;
+        data.value = parseFloat(document.getElementById(`aVal-${pinId}`).value);
+    } else {
+        data.operator = document.getElementById(`aOp-${pinId}`).value;
     }
-
-    try {
-        await API.createPinAlert(pinId, data);
-        Toast.success('Alert created');
-        await loadPins();
-    } catch (e) {
-        Toast.error('Failed: ' + e.message);
-    }
+    try { await API.createPinAlert(pinId, data); Toast.success('Alert added'); await loadPins(); }
+    catch (e) { Toast.error(e.message); }
 }
 
 async function toggleAlert(pinId, alertId, enabled) {
-    try {
-        await API.updatePinAlert(pinId, alertId, { enabled });
-        await loadPins();
-    } catch (e) {
-        Toast.error('Failed: ' + e.message);
-    }
+    try { await API.updatePinAlert(pinId, alertId, { enabled }); await loadPins(); }
+    catch (e) { Toast.error(e.message); }
 }
 
 async function deleteAlert(pinId, alertId) {
-    try {
-        await API.deletePinAlert(pinId, alertId);
-        Toast.success('Alert deleted');
-        await loadPins();
-    } catch (e) {
-        Toast.error('Failed: ' + e.message);
-    }
+    try { await API.deletePinAlert(pinId, alertId); Toast.success('Alert removed'); await loadPins(); }
+    catch (e) { Toast.error(e.message); }
 }
 
-// ── Boot ──
+// ── Unpin ──
+async function unpinFlight(pinId) {
+    try { await API.deletePin(pinId); allPins = allPins.filter(p => p.id !== pinId); renderPins(); Toast.success('Unpinned'); }
+    catch (e) { Toast.error(e.message); }
+}
+
+// ── Chart ──
+async function renderPriceChart(canvasId, pin) {
+    try {
+        const data = await API.getPinPriceHistory(pin.id);
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        if (!data.length) { canvas.parentElement.innerHTML = '<div class="pin-chart-empty">No price data yet</div>'; return; }
+
+        const fmtDate = iso => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+        const labels = data.map(d => fmtDate(d.recorded_at));
+        const prices = data.map(d => d.price);
+
+        // Projection (>= 2 points)
+        let projLabels = [], projPrices = [];
+        if (data.length >= 2) {
+            const reg = linReg(data.map((d, i) => ({ x: i, y: d.price })));
+            const last = new Date(data[data.length - 1].recorded_at);
+            const flight = new Date(pin.flight_date + 'T00:00:00');
+            const days = Math.max(1, Math.min(Math.ceil((flight - last) / 86400000), 30));
+            projLabels.push(labels[labels.length - 1]);
+            projPrices.push(prices[prices.length - 1]);
+            for (let s = 1; s <= days; s++) {
+                const d = new Date(last.getTime() + s * 86400000);
+                projLabels.push(fmtDate(d.toISOString()));
+                projPrices.push(Math.max(0, Math.round((reg.b + reg.m * (data.length - 1 + s)) * 100) / 100));
+            }
+        }
+
+        const allLabels = [...new Set([...labels, ...projLabels])];
+        if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+
+        const datasets = [{
+            label: 'Price (€)', data: labels.map((l, i) => ({ x: l, y: prices[i] })),
+            borderColor: '#6c63ff', backgroundColor: 'rgba(108,99,255,0.08)',
+            borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#6c63ff', tension: 0.3, fill: true,
+        }];
+        if (projPrices.length > 1) datasets.push({
+            label: 'Projection', data: projLabels.map((l, i) => ({ x: l, y: projPrices[i] })),
+            borderColor: 'rgba(108,99,255,0.5)', borderWidth: 2, borderDash: [6, 4],
+            pointRadius: 0, tension: 0.3, fill: false,
+        });
+
+        chartInstances[canvasId] = new Chart(canvas, {
+            type: 'line', data: { datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { type: 'category', labels: allLabels,
+                        ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 9 }, maxTicksLimit: 6 },
+                        grid: { color: 'rgba(255,255,255,0.04)' } },
+                    y: { ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 9 }, callback: v => v + '€' },
+                        grid: { color: 'rgba(255,255,255,0.04)' } }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y + '€' } }
+                }
+            }
+        });
+    } catch (e) { console.error('Chart error:', e); }
+}
+
+function linReg(pts) {
+    const n = pts.length;
+    let sx = 0, sy = 0, sxy = 0, sx2 = 0;
+    for (const p of pts) { sx += p.x; sy += p.y; sxy += p.x * p.y; sx2 += p.x * p.x; }
+    const d = n * sx2 - sx * sx;
+    if (d === 0) return { m: 0, b: sy / n };
+    return { m: (n * sxy - sx * sy) / d, b: (sy * sx2 - sx * sxy) / d };
+}
+
 document.addEventListener('DOMContentLoaded', init);

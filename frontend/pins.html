@@ -7,104 +7,110 @@
     <link rel="stylesheet" href="/css/main.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <style>
-        .pins-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .pins-title { color: var(--accent); font-size: 1.5rem; margin-bottom: 20px; }
-        #pinsContent { border-radius: var(--radius-lg); }
-        .pins-empty { color: var(--text-muted); text-align: center; padding: 60px 20px; font-size: 1rem; border-radius: var(--radius-lg); background: var(--glass-bg); border: 1px solid var(--glass-border); }
+        /* Full-width page override */
+        .page-content.pins-page { max-width: none; padding: 20px 24px; }
+
+        .pins-empty { color: var(--text-muted); text-align: center; padding: 60px 20px; font-size: 0.9rem; }
+
+        /* Grid layout — exactly 2 columns */
+        .pins-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+        }
 
         .pin-card {
             background: var(--glass-bg);
             border: 1px solid var(--glass-border);
-            border-radius: var(--radius-lg);
-            padding: 14px 18px;
-            margin-bottom: 12px;
+            border-radius: var(--radius);
+            padding: 14px 16px;
             backdrop-filter: blur(var(--glass-blur));
             -webkit-backdrop-filter: blur(var(--glass-blur));
+            transition: border-color var(--transition);
+            overflow: hidden;
         }
+        .pin-card:hover { border-color: rgba(255,255,255,0.15); }
 
-        /* Compact top band: header + details + actions on one line */
+        /* Top band — wrap to 2 rows if needed */
         .pin-top-band {
             display: flex;
             align-items: center;
-            gap: 14px;
-            flex-wrap: nowrap;
+            gap: 6px;
+            flex-wrap: wrap;
+            font-size: 0.78rem;
         }
-        .pin-logo { width: 26px; height: 26px; border-radius: 4px; flex-shrink: 0; }
-        .pin-airline { font-weight: 700; color: var(--text); font-size: 0.85rem; white-space: nowrap; }
-        .pin-direction-badge {
-            font-size: 0.6rem; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+        .pin-logo { width: 22px; height: 22px; border-radius: 4px; flex-shrink: 0; }
+        .pin-airline { font-weight: 700; color: var(--text); white-space: nowrap; }
+        .pin-dir {
+            font-size: 0.58rem; font-weight: 700; padding: 1px 5px; border-radius: 3px;
             text-transform: uppercase; flex-shrink: 0;
         }
-        .pin-direction-badge.outbound { background: rgba(108,99,255,0.2); color: var(--accent); }
-        .pin-direction-badge.return { background: rgba(0,200,100,0.2); color: var(--green); }
-        .pin-route { color: var(--text-muted); font-size: 0.78rem; white-space: nowrap; }
-        .pin-sep { color: rgba(255,255,255,0.15); font-size: 0.9rem; }
-
-        .pin-info { font-size: 0.78rem; color: var(--text); white-space: nowrap; }
-        .pin-info-label { color: var(--text-muted); font-size: 0.65rem; margin-right: 3px; }
-        .pin-info-value { font-weight: 600; }
-
-        .pin-price-change { font-size: 0.7rem; margin-left: 2px; }
-        .pin-price-change.down { color: var(--green); }
-        .pin-price-change.up { color: var(--red); }
-
-        .pin-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
+        .pin-dir.outbound { background: rgba(108,99,255,0.2); color: var(--accent); }
+        .pin-dir.return { background: rgba(0,200,100,0.2); color: var(--green); }
+        .pin-route { color: var(--text-muted); white-space: nowrap; }
+        .pin-sep { color: rgba(255,255,255,0.1); }
+        .pin-val { white-space: nowrap; }
+        .pin-lbl { color: var(--text-muted); font-size: 0.6rem; margin-right: 2px; }
+        .pin-num { font-weight: 600; color: var(--text); }
+        .pin-change { font-size: 0.68rem; margin-left: 1px; }
+        .pin-change.down { color: var(--green); }
+        .pin-change.up { color: var(--red); }
+        .pin-actions { display: flex; gap: 5px; margin-left: auto; flex-shrink: 0; }
 
         /* Chart */
-        .pin-chart-container { margin-top: 10px; position: relative; height: 120px; }
-        .pin-chart-empty { color: var(--text-muted); text-align: center; padding: 20px; font-size: 0.75rem; }
+        .pin-chart { margin-top: 8px; position: relative; height: 110px; }
+        .pin-chart-empty { color: var(--text-muted); text-align: center; padding: 16px; font-size: 0.72rem; }
 
-        /* Alert section */
-        .pin-alerts-section { border-top: 1px solid var(--glass-border); margin-top: 10px; padding-top: 8px; }
-        .pin-alerts-header {
-            display: flex; align-items: center; justify-content: space-between;
-            cursor: pointer; padding: 2px 0;
-        }
-        .pin-alerts-title { font-size: 0.8rem; color: var(--text); font-weight: 600; }
-        .pin-alerts-toggle { color: var(--text-muted); font-size: 0.75rem; }
-        .pin-alerts-body { display: none; margin-top: 6px; }
-        .pin-alerts-body.open { display: block; }
+        /* Alerts — always visible inline */
+        .pin-alerts { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 
-        .alert-rule {
-            display: flex; align-items: center; gap: 8px;
-            padding: 5px 10px; background: rgba(0,0,0,0.2); border-radius: 6px;
-            margin-bottom: 4px; font-size: 0.75rem;
+        .alert-row {
+            display: flex; align-items: center; gap: 5px;
+            padding: 4px 8px; background: rgba(0,0,0,0.2); border-radius: 5px; font-size: 0.72rem;
         }
-        .alert-rule-text { flex: 1; color: var(--text); }
-        .alert-rule-cooldown { color: var(--text-muted); font-size: 0.65rem; }
-        .alert-rule-actions { display: flex; gap: 4px; }
-        .alert-rule-actions button {
-            background: none; border: none; cursor: pointer;
-            font-size: 0.7rem; padding: 2px 5px; border-radius: 4px;
+        .alert-row-text { flex: 1; color: var(--text); }
+        .alert-row-cd { color: var(--text-muted); font-size: 0.62rem; }
+        .alert-row .abtn {
+            background: none; border: none; cursor: pointer; font-size: 0.72rem;
+            padding: 1px 5px; border-radius: 3px; color: var(--text-muted);
         }
-        .alert-toggle-btn { color: var(--accent); }
-        .alert-delete-btn { color: var(--red); }
-        .alert-toggle-btn:hover, .alert-delete-btn:hover { background: rgba(255,255,255,0.05); }
+        .alert-row .abtn:hover { background: rgba(255,255,255,0.06); }
+        .alert-row .abtn.del { color: var(--red); }
 
-        /* Alert form — single line */
-        .alert-form {
-            display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-            background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px 10px; margin-top: 6px;
+        /* Inline add-alert form */
+        .alert-add {
+            display: flex; align-items: center; gap: 5px;
+            padding: 4px 8px; background: rgba(0,0,0,0.15); border-radius: 5px; font-size: 0.72rem;
         }
-        .alert-form select, .alert-form input[type="number"] {
+        .alert-add select, .alert-add input[type="number"] {
             background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border);
-            color: var(--text); padding: 4px 6px; border-radius: 4px; font-size: 0.75rem;
+            color: var(--text); padding: 3px 5px; border-radius: 3px; font-size: 0.72rem;
         }
-        .alert-form select { min-width: 90px; }
-        .alert-form input[type="number"] { width: 60px; }
-        .alert-form label { font-size: 0.7rem; color: var(--text-muted); }
-        .alert-form input[type="checkbox"] { margin: 0; }
+        .alert-add select { min-width: 80px; }
+        .alert-add input[type="number"] { width: 52px; }
+        .alert-add label { font-size: 0.65rem; color: var(--text-muted); display: flex; align-items: center; gap: 2px; }
+        .alert-add input[type="checkbox"] { margin: 0; }
+        .alert-add .abtn {
+            background: none; border: none; cursor: pointer; font-weight: 700;
+            padding: 2px 7px; border-radius: 3px; font-size: 0.82rem;
+        }
+        .alert-add .abtn.add { color: var(--green); }
+        .alert-add .abtn.add:hover { background: rgba(0,200,100,0.1); }
 
         .btn-sm {
-            padding: 4px 12px; border-radius: 5px; font-size: 0.73rem;
+            padding: 3px 10px; border-radius: 4px; font-size: 0.7rem;
             cursor: pointer; border: none; font-weight: 600;
         }
         .btn-accent { background: var(--accent); color: #fff; }
         .btn-accent:hover { opacity: 0.85; }
-        .btn-ghost { background: rgba(255,255,255,0.06); color: var(--text); }
+        .btn-ghost { background: rgba(255,255,255,0.06); color: var(--text); text-decoration: none; }
         .btn-ghost:hover { background: rgba(255,255,255,0.1); }
-        .btn-danger { background: rgba(220,50,50,0.2); color: var(--red); }
-        .btn-danger:hover { background: rgba(220,50,50,0.3); }
+        .btn-danger { background: rgba(220,50,50,0.15); color: var(--red); }
+        .btn-danger:hover { background: rgba(220,50,50,0.25); }
+
+        @media (max-width: 900px) {
+            .pins-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -129,12 +135,12 @@
         </div>
     </header>
 
-    <div class="pins-container">
-        <h1 class="pins-title">Pinned Flights</h1>
+    <main class="page-content pins-page">
+        <h1 class="page-title">Pinned Flights</h1>
         <div id="pinsContent">
             <div class="pins-empty">Loading...</div>
         </div>
-    </div>
+    </main>
 
     <script src="/js/api.js"></script>
     <script src="/js/toast.js"></script>
