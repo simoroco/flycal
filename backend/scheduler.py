@@ -27,28 +27,60 @@ async def _scheduled_crawl():
             logger.info("Scheduler triggered but no last search found, skipping.")
             return
 
-        # Create a new Search entry so each auto-crawl appears in history
-        db.query(Search).filter(Search.is_last == True).update({"is_last": False})
-        new_search = Search(
-            origin_city=last_search.origin_city,
-            destination_city=last_search.destination_city,
-            date_from=last_search.date_from,
-            date_to=last_search.date_to,
-            trip_type=last_search.trip_type,
-            airlines=last_search.airlines,
-            is_last=True,
-            created_at=datetime.utcnow(),
-        )
-        db.add(new_search)
-        db.commit()
+        # Atomic is_last flag swap — prevents race with manual search
+        from sqlalchemy import text
+        db.execute(text("BEGIN IMMEDIATE"))
+        try:
+            # Snapshot search params before clearing is_last
+            origin = last_search.origin_city
+            dest = last_search.destination_city
+            df = last_search.date_from
+            dt = last_search.date_to
+            tt = last_search.trip_type
+            al = last_search.airlines
+
+            db.query(Search).filter(Search.is_last == True).update({"is_last": False})
+            new_search = Search(
+                origin_city=origin,
+                destination_city=dest,
+                date_from=df,
+                date_to=dt,
+                trip_type=tt,
+                airlines=al,
+                is_last=True,
+                created_at=datetime.utcnow(),
+            )
+            db.add(new_search)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
         db.refresh(new_search)
         search_id = new_search.id
     finally:
         db.close()
 
     logger.info(f"Scheduler running crawl for search {search_id} (auto)")
-    from routers.flights import _run_scraping
-    await _run_scraping(search_id, triggered_by="auto")
+    try:
+        from routers.flights import _run_scraping
+        await _run_scraping(search_id, triggered_by="auto")
+    except Exception as e:
+        logger.error(f"Scheduled crawl failed for search {search_id}: {e}")
+        # Mark the failed search's log entry
+        db2 = SessionLocal()
+        try:
+            from database import CrawlerLog
+            log = db2.query(CrawlerLog).filter(
+                CrawlerLog.search_id == search_id,
+                CrawlerLog.status == "running"
+            ).first()
+            if log:
+                log.status = "error"
+                log.error_msg = f"Scheduler error: {str(e)[:400]}"
+                log.ended_at = datetime.utcnow()
+                db2.commit()
+        finally:
+            db2.close()
 
 
 def _get_crawler_time() -> str:

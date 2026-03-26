@@ -6,6 +6,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.orm import Session, joinedload
 
 from database import (
@@ -22,8 +23,11 @@ logger = logging.getLogger("flycal.routers.flights")
 
 router = APIRouter(prefix="/api/flights", tags=["flights"])
 
-# Global abort flag for cancelling in-progress searches
+# Global abort flag for cancelling in-progress searches (thread-safe)
+import threading
+_abort_lock = threading.Lock()
 _abort_search_ids: set = set()
+_running_search_id: int = None  # Track which search is currently running
 
 
 class SearchRequest(BaseModel):
@@ -143,6 +147,7 @@ def get_last_search(db: Session = Depends(get_db)):
 
 
 async def _run_scraping(search_id: int, triggered_by: str = "manual"):
+    global _running_search_id
     from database import SessionLocal, Flight, PriceHistory, PriceTracker, Airline, Search, CrawlerLog
     from scraper.ryanair import RyanairScraper
     from scraper.transavia import TransaviaScraper
@@ -152,11 +157,15 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
     from scraper.amadeus_scraper import amadeus_search, is_amadeus_configured
     from scraper.google_flights import google_flights_search, google_flights_bulk_search
 
+    with _abort_lock:
+        _running_search_id = search_id
+
     db = SessionLocal()
     log_entry = None
     try:
         search = db.query(Search).filter(Search.id == search_id).first()
         if not search:
+            logger.warning(f"Search {search_id} not found, aborting scrape")
             return
 
         log_entry = CrawlerLog(
@@ -279,41 +288,42 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
                         )
                         amadeus_real = [r for r in amadeus_results if not getattr(r, "route_not_served", False)]
                         if amadeus_real:
-                            # Replace route_not_served with Amadeus results
-                            all_results = [(n, r) for n, r in all_results if n != airline_name]
-                            all_results.extend((airline_name, r) for r in amadeus_results)
+                            # Replace only route_not_served entries, keep real flights from earlier phases
+                            all_results = [(n, r) for n, r in all_results
+                                           if not (n == airline_name and getattr(r, "route_not_served", False))]
+                            all_results.extend((airline_name, r) for r in amadeus_real)
                             logger.info(f"Amadeus found {len(amadeus_real)} flights for {airline_name}")
                     except Exception as am_err:
                         logger.warning(f"Amadeus fallback failed for {airline_name}: {am_err}")
 
-        flight_ids = [f.id for f in db.query(Flight.id).filter(Flight.search_id == search_id).all()]
-        if flight_ids:
-            db.query(PriceHistory).filter(PriceHistory.flight_id.in_(flight_ids)).delete(synchronize_session=False)
-        db.query(Flight).filter(Flight.search_id == search_id).delete(synchronize_session=False)
-        db.commit()
+        # Delete existing flights for this search (PriceHistory cascades via relationship)
+        existing_flights = db.query(Flight).filter(Flight.search_id == search_id).all()
+        for ef in existing_flights:
+            db.delete(ef)
+        db.flush()
 
-        # Deduplicate flights (same airline + direction + date + times + airports)
+        # Deduplicate flights and filter out route_not_served (only track which airlines had none)
         seen = set()
         deduped_results = []
+        airlines_with_real_flights = set()
         for airline_name, result in all_results:
             if getattr(result, "route_not_served", False):
-                deduped_results.append((airline_name, result))
-                continue
+                continue  # Skip route_not_served entries, track via set below
             key = (airline_name, result.direction, str(result.flight_date),
                    result.departure_time, result.arrival_time,
                    result.origin_airport, result.destination_airport)
             if key not in seen:
                 seen.add(key)
                 deduped_results.append((airline_name, result))
+                airlines_with_real_flights.add(airline_name)
 
-        route_not_served_airlines = set()
+        # Determine which requested airlines had no real results
+        route_not_served_airlines = set(airline_map.keys()) - airlines_with_real_flights
+
         now = datetime.utcnow()
         for airline_name, result in deduped_results:
             airline = airline_map.get(airline_name)
             if not airline:
-                continue
-            if getattr(result, "route_not_served", False):
-                route_not_served_airlines.add(airline_name)
                 continue
             flight = Flight(
                 search_id=search_id,
@@ -385,7 +395,10 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
             log_entry.ended_at = datetime.utcnow()
             db.commit()
     finally:
-        _abort_search_ids.discard(search_id)
+        with _abort_lock:
+            _abort_search_ids.discard(search_id)
+            if _running_search_id == search_id:
+                _running_search_id = None
         db.close()
 
 
@@ -408,34 +421,53 @@ def get_price_history(flight_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/cancel")
-async def cancel_search(db: Session = Depends(get_db)):
-    """Cancel the current running search."""
-    last_search = db.query(Search).filter(Search.is_last == True).first()
-    if last_search:
-        _abort_search_ids.add(last_search.id)
-        return {"status": "cancelled", "search_id": last_search.id}
+async def cancel_search(search_id: Optional[int] = None, db: Session = Depends(get_db)):
+    """Cancel a specific or the current running search."""
+    target_id = search_id
+    if not target_id:
+        # Fall back to currently running search
+        with _abort_lock:
+            target_id = _running_search_id
+    if not target_id:
+        # Final fallback: last search
+        last_search = db.query(Search).filter(Search.is_last == True).first()
+        if last_search:
+            target_id = last_search.id
+    if target_id:
+        with _abort_lock:
+            _abort_search_ids.add(target_id)
+        return {"status": "cancelled", "search_id": target_id}
     return {"status": "no_search_running"}
 
 
 @router.post("/search")
 async def create_search(data: SearchRequest, db: Session = Depends(get_db)):
+    if not data.origin_city or not data.origin_city.strip():
+        raise HTTPException(status_code=400, detail="Origin city is required.")
+    if not data.destination_city or not data.destination_city.strip():
+        raise HTTPException(status_code=400, detail="Destination city is required.")
     if data.origin_city.strip().upper() == data.destination_city.strip().upper():
         raise HTTPException(status_code=400, detail="Origin and destination cities must be different.")
-    db.query(Search).filter(Search.is_last == True).update({"is_last": False})
-    db.commit()
 
-    search = Search(
-        origin_city=data.origin_city,
-        destination_city=data.destination_city,
-        date_from=date.fromisoformat(data.date_from),
-        date_to=date.fromisoformat(data.date_to),
-        trip_type=data.trip_type,
-        airlines=json.dumps(data.airlines),
-        is_last=True,
-        created_at=datetime.utcnow(),
-    )
-    db.add(search)
-    db.commit()
+    # Atomic is_last flag swap — prevents race with scheduler
+    db.execute(text("BEGIN IMMEDIATE"))
+    try:
+        db.query(Search).filter(Search.is_last == True).update({"is_last": False})
+        search = Search(
+            origin_city=data.origin_city.strip(),
+            destination_city=data.destination_city.strip(),
+            date_from=date.fromisoformat(data.date_from),
+            date_to=date.fromisoformat(data.date_to),
+            trip_type=data.trip_type,
+            airlines=json.dumps(data.airlines),
+            is_last=True,
+            created_at=datetime.utcnow(),
+        )
+        db.add(search)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(search)
 
     asyncio.ensure_future(_run_scraping(search.id))

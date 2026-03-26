@@ -518,6 +518,8 @@ async def google_flights_bulk_search(
 
     except Exception as e:
         logger.error(f"Google Flights bulk search error: {e}")
+    finally:
+        executor.shutdown(wait=False)
 
     for name, flights in by_airline.items():
         real = sum(1 for f in flights if not f.route_not_served)
@@ -544,10 +546,9 @@ async def google_flights_search(
     if trip_type == "roundtrip":
         directions.append(("return", destination, origin))
 
+    loop = asyncio.get_event_loop()
+    executor = ThreadPoolExecutor(max_workers=1)
     try:
-        loop = asyncio.get_event_loop()
-        executor = ThreadPoolExecutor(max_workers=1)
-
         for direction, dep, arr in directions:
             direction_had_results = False
             current = date_from
@@ -593,6 +594,8 @@ async def google_flights_search(
 
     except Exception as e:
         logger.error(f"Google Flights scraper error for {airline_name}: {e}")
+    finally:
+        executor.shutdown(wait=False)
 
     real_count = sum(1 for r in results if not r.route_not_served)
     logger.info(f"Google Flights ({airline_name}): found {real_count} flights for {origin_city}->{destination_city}")

@@ -187,7 +187,8 @@ class TransaviaScraper(ScraperBase):
         loop = asyncio.get_event_loop()
         executor = ThreadPoolExecutor(max_workers=2)
 
-        for direction, dep, arr in directions:
+        try:
+          for direction, dep, arr in directions:
             direction_results = []
             seen = set()
             current = date_from
@@ -238,6 +239,9 @@ class TransaviaScraper(ScraperBase):
                 )
             else:
                 results.append(make_route_not_served(self.AIRLINE, direction, date_from))
+
+        finally:
+            executor.shutdown(wait=False)
 
         real_count = sum(1 for r in results if not r.route_not_served)
         logger.info(f"Transavia: total {real_count} flights for {origin_city}->{destination_city}")
