@@ -284,3 +284,98 @@ def send_crawl_recap(search_id: int):
         logger.error(f"Failed to send email: {e}")
     finally:
         db.close()
+
+
+def send_alert_email(pin, airline, alerts_triggered, current_price, previous_price, settings=None):
+    """Send a price alert email for a pinned flight."""
+    if settings is None:
+        settings = _get_settings()
+
+    if settings.get("smtp_send_enabled") != "true":
+        return
+
+    host = settings.get("smtp_host", "")
+    port = int(settings.get("smtp_port", "587"))
+    user = settings.get("smtp_user", "")
+    password = settings.get("smtp_password", "")
+    to_email = settings.get("smtp_to", "")
+
+    if not host or not user or not to_email:
+        return
+
+    server_hostname = _get_server_hostname(settings)
+    airline_name = airline.name if airline else "Unknown"
+    origin = pin.origin_airport
+    dest = pin.destination_airport
+    flight_date = pin.flight_date.isoformat() if pin.flight_date else "?"
+    departure = pin.departure_time or "?"
+    direction_label = "Aller" if pin.direction == "outbound" else "Retour"
+
+    # Price change info
+    price_change_html = ""
+    if previous_price is not None and previous_price != current_price:
+        diff = current_price - previous_price
+        arrow = "↓" if diff < 0 else "↑"
+        color = "#00c864" if diff < 0 else "#dc3232"
+        pct = abs(diff / previous_price * 100) if previous_price else 0
+        price_change_html = f'<span style="color:{color};font-weight:700">{arrow} {abs(round(diff))}€ ({pct:.0f}%)</span>'
+
+    # Triggered conditions
+    conditions_html = ""
+    for a in alerts_triggered:
+        if a.alert_type == "threshold":
+            op = "<" if a.operator == "lt" else ">"
+            unit = "%" if a.value_is_percent else "€"
+            conditions_html += f"<li>Prix {op} {a.value}{unit}</li>"
+        elif a.alert_type == "variation":
+            conditions_html += f"<li>Variation > {a.value}%</li>"
+        elif a.alert_type == "trend_start":
+            d = "baisse" if a.operator == "decrease" else "hausse"
+            conditions_html += f"<li>Tendance en {d}</li>"
+
+    html = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; background: #1a1a2e; color: #e8e8f0; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background: rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; border: 1px solid rgba(255,255,255,0.1);">
+            <h1 style="color: #6c63ff;">🔔 FlyCal — Alerte Prix</h1>
+            <hr style="border-color: rgba(255,255,255,0.1); margin: 16px 0;">
+
+            <div style="background: rgba(108,99,255,0.08); border-radius: 10px; padding: 16px; margin-bottom: 16px;">
+                <p style="margin:0 0 8px 0"><strong>Compagnie:</strong> {airline_name}</p>
+                <p style="margin:0 0 8px 0"><strong>Vol:</strong> {direction_label} — {origin} → {dest}</p>
+                <p style="margin:0 0 8px 0"><strong>Date:</strong> {flight_date}</p>
+                <p style="margin:0 0 8px 0"><strong>Départ:</strong> {departure}</p>
+            </div>
+
+            <div style="background: rgba(0,200,100,0.08); border-radius: 10px; padding: 16px; margin-bottom: 16px; text-align: center;">
+                <p style="font-size: 2rem; font-weight: 700; margin: 0; color: #e8e8f0;">{round(current_price)}€</p>
+                <p style="margin: 4px 0 0 0;">{price_change_html}</p>
+            </div>
+
+            <h2 style="color: #6c63ff; font-size: 1rem;">Conditions déclenchées</h2>
+            <ul style="padding-left: 20px;">
+                {conditions_html}
+            </ul>
+
+            <hr style="border-color: rgba(255,255,255,0.1);">
+            <p><a href="http://{server_hostname}:4444/pins.html" style="color: #6c63ff;">Voir mes vols épinglés →</a></p>
+        </div>
+    </body>
+    </html>
+    """
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"FlyCal Alert — {airline_name} {origin}→{dest} {flight_date}"
+        msg["From"] = user
+        msg["To"] = to_email
+        msg.attach(MIMEText(html, "html"))
+
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.starttls()
+            server.login(user, password)
+            server.sendmail(user, [to_email], msg.as_string())
+
+        logger.info(f"Alert email sent for {airline_name} {origin}→{dest} {flight_date}")
+    except Exception as e:
+        logger.error(f"Failed to send alert email: {e}")

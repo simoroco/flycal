@@ -349,6 +349,12 @@ async def _run_scraping(search_id: int, triggered_by: str = "manual"):
             db.commit()
 
         try:
+            from alert_engine import check_alerts
+            check_alerts(db)
+        except Exception as e:
+            logger.error(f"Alert checking failed: {e}")
+
+        try:
             from email_service import send_crawl_recap
             send_crawl_recap(search_id)
         except Exception as e:

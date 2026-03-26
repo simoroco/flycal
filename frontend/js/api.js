@@ -134,4 +134,44 @@ const API = {
     async testSmtp() {
         return this.post('/api/settings/smtp-test');
     },
+
+    // ── Pins ──
+    async getPins() {
+        return this.get('/api/pins');
+    },
+
+    async createPin(flight) {
+        return this.post('/api/pins', {
+            airline_id: flight.airline_id,
+            direction: flight.direction,
+            flight_date: flight.flight_date,
+            departure_time: flight.departure_time,
+            origin_airport: flight.origin_airport,
+            destination_airport: flight.destination_airport,
+        });
+    },
+
+    async deletePin(pinId) {
+        return this.del(`/api/pins/${pinId}`);
+    },
+
+    async checkPinsBatch(flights) {
+        return this.post('/api/pins/check-batch', flights);
+    },
+
+    async getPinPriceHistory(pinId) {
+        return this.get(`/api/pins/${pinId}/price-history`);
+    },
+
+    async createPinAlert(pinId, data) {
+        return this.post(`/api/pins/${pinId}/alerts`, data);
+    },
+
+    async updatePinAlert(pinId, alertId, data) {
+        return this.put(`/api/pins/${pinId}/alerts/${alertId}`, data);
+    },
+
+    async deletePinAlert(pinId, alertId) {
+        return this.del(`/api/pins/${pinId}/alerts/${alertId}`);
+    },
 };

@@ -145,6 +145,39 @@
     text-align: left;
 }
 
+.flight-row-pin {
+    flex-shrink: 0;
+    width: 18px;
+    text-align: center;
+    font-size: 0.7rem;
+    line-height: 1;
+}
+
+.flight-context-menu {
+    position: absolute;
+    z-index: 200;
+    background: rgba(15, 15, 25, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 120px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+.ctx-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.ctx-item:hover {
+    background: rgba(108, 99, 255, 0.15);
+}
+
 .flight-row-prices {
     margin-left: auto;
     flex-shrink: 0;

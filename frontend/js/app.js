@@ -11,6 +11,7 @@ let airlinesList = [];
 let isSearching = false;
 let searchTimerInterval = null;
 let searchStartTime = null;
+let pinnedFlightKeys = {}; // key -> pin_id
 
 // ── Init ──
 async function init() {
@@ -23,6 +24,7 @@ async function init() {
         loadSettingsForApp(),
     ]);
     handleUrlParams();
+    await loadPinnedFlightKeys();
     // Always load last search info (dates, airports, etc.)
     await loadLastSearchInfo();
     // Check if a background search is still running
@@ -932,6 +934,8 @@ function renderDayFlights(flights, direction, isDimmed) {
         html += `<div class="flight-row color-${color}${isSelected ? ' selected' : ''}${isDimmed ? ' dim' : ''}"
                       data-flight-id="${f.id}"
                       onclick="handleFlightClick(${f.id}, '${direction}')"
+                      ondblclick="handleFlightPin(${f.id}, '${direction}', event)"
+                      oncontextmenu="showFlightContextMenu(event, ${f.id}, '${direction}')"
                       onmouseenter="showPriceHistory(this, ${f.id})"
                       onmouseleave="hidePriceHistory(this)">`;
 
@@ -947,6 +951,10 @@ function renderDayFlights(flights, direction, isDimmed) {
             html += `<span class="flight-row-duration">${duration}</span>`;
         }
         html += `<span class="flight-row-airports">${f.origin_airport || '???'}→${f.destination_airport || '???'}</span>`;
+
+        const pinKey = flightPinKey(f);
+        const isPinned = !!pinnedFlightKeys[pinKey];
+        html += `<span class="flight-row-pin">${isPinned ? '📌' : ''}</span>`;
 
         const rawPrice = f.price;
         const fixedFees = f.airline_fees_fixed || 0;
@@ -1010,6 +1018,71 @@ function handleFlightClick(flightId, direction) {
 
     saveSelectedFlights();
     renderFlights();
+}
+
+// ── Pin functions ──
+function flightPinKey(f) {
+    return `${f.airline_id}|${f.direction}|${f.flight_date}|${f.departure_time}|${f.origin_airport}|${f.destination_airport}`;
+}
+
+async function loadPinnedFlightKeys() {
+    try {
+        const pins = await API.getPins();
+        pinnedFlightKeys = {};
+        for (const p of pins) {
+            const key = `${p.airline_id}|${p.direction}|${p.flight_date}|${p.departure_time}|${p.origin_airport}|${p.destination_airport}`;
+            pinnedFlightKeys[key] = p.id;
+        }
+    } catch (e) {
+        console.error('Failed to load pins:', e);
+        pinnedFlightKeys = {};
+    }
+}
+
+async function handleFlightPin(flightId, direction, event) {
+    if (event) event.stopPropagation();
+    const flight = allFlights.find(f => f.id === flightId);
+    if (!flight) return;
+    const key = flightPinKey(flight);
+
+    try {
+        if (pinnedFlightKeys[key]) {
+            await API.deletePin(pinnedFlightKeys[key]);
+            delete pinnedFlightKeys[key];
+            Toast.info('Flight unpinned');
+        } else {
+            const result = await API.createPin(flight);
+            pinnedFlightKeys[key] = result.id;
+            Toast.success('Flight pinned 📌');
+        }
+        renderFlights();
+    } catch (e) {
+        Toast.error('Pin error: ' + e.message);
+    }
+    const menu = document.getElementById('flightContextMenu');
+    if (menu) menu.remove();
+}
+
+function showFlightContextMenu(event, flightId, direction) {
+    event.preventDefault();
+    event.stopPropagation();
+    const flight = allFlights.find(f => f.id === flightId);
+    if (!flight) return;
+    const key = flightPinKey(flight);
+    const isPinned = !!pinnedFlightKeys[key];
+
+    const old = document.getElementById('flightContextMenu');
+    if (old) old.remove();
+
+    const menu = document.createElement('div');
+    menu.id = 'flightContextMenu';
+    menu.className = 'flight-context-menu';
+    menu.innerHTML = `<div class="ctx-item" onclick="handleFlightPin(${flightId}, '${direction}', event)">${isPinned ? '📌 Unpin' : '📌 Pin'}</div>`;
+    menu.style.left = event.pageX + 'px';
+    menu.style.top = event.pageY + 'px';
+    document.body.appendChild(menu);
+
+    setTimeout(() => document.addEventListener('click', () => { const m = document.getElementById('flightContextMenu'); if (m) m.remove(); }, { once: true }), 10);
 }
 
 // ── Recap banner ──

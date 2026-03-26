@@ -119,6 +119,51 @@ class CrawlerLog(Base):
     search = relationship("Search", back_populates="crawler_logs")
 
 
+class PinnedFlight(Base):
+    __tablename__ = "pinned_flights"
+    __table_args__ = (
+        # Same identity key as PriceTracker
+        # Prevents duplicate pins for the same flight
+        {"sqlite_autoincrement": True},
+    )
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    airline_id = Column(Integer, ForeignKey("airlines.id"), nullable=False)
+    direction = Column(Text, nullable=False)
+    flight_date = Column(Date, nullable=False)
+    departure_time = Column(Text, nullable=False)
+    origin_airport = Column(Text, nullable=False)
+    destination_airport = Column(Text, nullable=False)
+    pinned_at = Column(DateTime, default=datetime.utcnow)
+    airline = relationship("Airline")
+    alerts = relationship("PriceAlert", back_populates="pinned_flight", cascade="all, delete-orphan")
+
+
+class PriceAlert(Base):
+    __tablename__ = "price_alerts"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    pinned_flight_id = Column(Integer, ForeignKey("pinned_flights.id"), nullable=False)
+    alert_type = Column(Text, nullable=False)  # "threshold", "variation", "trend_start"
+    operator = Column(Text, nullable=True)      # "lt"/"gt" for threshold; "increase"/"decrease" for trend
+    value = Column(Float, nullable=True)        # absolute price or percentage
+    value_is_percent = Column(Boolean, default=False)
+    logic_group = Column(Integer, default=0)    # AND intra-group, OR inter-groups
+    cooldown = Column(Text, default="every_scan")  # once_only, every_scan, once_per_day, once_per_week
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    pinned_flight = relationship("PinnedFlight", back_populates="alerts")
+    history = relationship("AlertHistory", back_populates="alert", cascade="all, delete-orphan")
+
+
+class AlertHistory(Base):
+    __tablename__ = "alert_history"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    price_alert_id = Column(Integer, ForeignKey("price_alerts.id"), nullable=False)
+    triggered_at = Column(DateTime, default=datetime.utcnow)
+    price_at_trigger = Column(Float, nullable=False)
+    message = Column(Text, nullable=True)
+    alert = relationship("PriceAlert", back_populates="history")
+
+
 def get_db():
     db = SessionLocal()
     try:
