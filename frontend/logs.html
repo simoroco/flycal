@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlyCal — Logs</title>
+    <link rel="stylesheet" href="/css/main.css">
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body { display: flex; flex-direction: column; }
+        .page-content.logs-page {
+            max-width: none; padding: 20px 24px;
+            flex: 1; display: flex; flex-direction: column; min-height: 0;
+        }
+        .logs-header { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; flex-shrink: 0; }
+        .logs-header .page-title { margin-bottom: 0; }
+        .logs-full {
+            flex: 1; min-height: 0; overflow-y: auto;
+            background: rgba(0,0,0,0.3); border-radius: var(--radius-sm);
+            padding: 12px; font-family: 'Menlo','Monaco',monospace; font-size: 0.75rem;
+        }
+        .log-line { padding: 3px 0; color: var(--text-muted); }
+        .log-line .status-success { color: var(--green); font-weight: 600; }
+        .log-line .status-error { color: var(--red); font-weight: 600; }
+        .log-line .status-running { color: var(--accent); font-weight: 600; }
+        .log-line .status-cancelled { color: var(--text-muted); font-weight: 600; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <a href="/" class="logo" style="text-decoration:none">
+                <img src="/logo.png" alt="FlyCal" class="logo-img">
+                <span class="logo-text">FlyCal</span>
+            </a>
+            <nav class="nav">
+                <a href="/" class="nav-link">Scan</a>
+                <a href="/tracks.html" class="nav-link">Tracks</a>
+                <a href="/automate.html" class="nav-link">Automate</a>
+                <a href="/history.html" class="nav-link">History</a>
+                <a href="/settings.html" class="nav-link">Settings</a>
+                <a href="/logs.html" class="nav-link active">Logs</a>
+            </nav>
+        </div>
+        <div class="header-right">
+            <div class="crawler-badge" id="crawlerBadge" onclick="toggleCrawlerFromHeader()">
+                <span class="crawler-dot" id="crawlerDot"></span>
+                <span id="crawlerLabel">Manual & Silent Updating</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="page-content logs-page">
+        <div class="logs-header">
+            <h1 class="page-title">Logs</h1>
+        </div>
+        <div class="logs-full" id="logsContainer"></div>
+    </main>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/toast.js"></script>
+    <script>
+    async function init() {
+        await Promise.all([loadLogs(), loadBadgeStatus()]);
+    }
+
+    async function loadBadgeStatus() {
+        try {
+            const status = await API.getAutomateStatus();
+            updateBadge(status.enabled);
+        } catch (e) {}
+    }
+
+    function updateBadge(enabled) {
+        const dot = document.getElementById('crawlerDot');
+        const label = document.getElementById('crawlerLabel');
+        if (dot) dot.style.background = enabled ? 'var(--green)' : 'var(--red)';
+        if (label) label.textContent = enabled ? 'Automate & Update Me : ON' : 'Manual & Silent Updating : OFF';
+    }
+
+    async function toggleCrawlerFromHeader() {
+        try {
+            const res = await API.toggleGlobalCrawler();
+            updateBadge(res.enabled);
+            Toast.success(res.enabled ? 'Automate & Update Me enabled' : 'Automate & Update Me disabled');
+        } catch (e) { Toast.error('Failed: ' + e.message); }
+    }
+
+    async function loadLogs() {
+        try {
+            const logs = await API.getAutomateLogs();
+            const container = document.getElementById('logsContainer');
+            if (!logs.length) { container.innerHTML = '<div style="color:var(--text-muted);padding:40px;text-align:center">No logs yet</div>'; return; }
+            container.innerHTML = logs.map(log => {
+                const dt = log.started_at ? fmtDT(log.started_at) : '';
+                const statusClass = `status-${log.status}`;
+                const errMsg = log.error_msg ? ` — ${log.error_msg}` : '';
+                return `<div class="log-line">${dt} <span class="${statusClass}">${log.status}</span> ${log.triggered_by}${errMsg}</div>`;
+            }).join('');
+        } catch (e) { console.error('Logs error:', e); }
+    }
+
+    function fmtDT(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        return d.toLocaleString('sv-SE', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }).replace(',', '');
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

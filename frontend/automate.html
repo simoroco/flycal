@@ -35,18 +35,11 @@
         }
         .crawler-actions { display: flex; gap: 5px; margin-left: auto; }
 
-        .logs-section { margin-top: 20px; }
-        .logs-section h2 { font-size: 1rem; color: var(--text); margin-bottom: 8px; }
-        .logs-container-tall {
-            max-height: 600px; overflow-y: auto;
-            background: rgba(0,0,0,0.3); border-radius: var(--radius-sm);
-            padding: 10px; font-family: 'Menlo','Monaco',monospace; font-size: 0.72rem;
+        .view-logs-link {
+            display: inline-flex; align-items: center; gap: 4px;
+            color: var(--text-muted); font-size: 0.78rem; text-decoration: none; margin-top: 12px;
         }
-        .log-line { padding: 2px 0; color: var(--text-muted); }
-        .log-line .status-success { color: var(--green); font-weight: 600; }
-        .log-line .status-error { color: var(--red); font-weight: 600; }
-        .log-line .status-running { color: var(--accent); font-weight: 600; }
-        .log-line .status-cancelled { color: var(--text-muted); font-weight: 600; }
+        .view-logs-link:hover { color: var(--accent); }
 
         /* Toggle switch — scoped to avoid main.css conflict */
         .auto-switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
@@ -86,12 +79,13 @@
                 <a href="/automate.html" class="nav-link active">Automate</a>
                 <a href="/history.html" class="nav-link">History</a>
                 <a href="/settings.html" class="nav-link">Settings</a>
+                <a href="/logs.html" class="nav-link">Logs</a>
             </nav>
         </div>
         <div class="header-right">
             <div class="crawler-badge" id="crawlerBadge" onclick="toggleGlobal()">
                 <span class="crawler-dot" id="crawlerDot"></span>
-                <span id="crawlerLabel">Crawler</span>
+                <span id="crawlerLabel">Manual & Silent Updating</span>
             </div>
         </div>
     </header>
@@ -114,10 +108,7 @@
             <div class="crawler-empty">Loading...</div>
         </div>
 
-        <div class="logs-section">
-            <h2>Recent Logs</h2>
-            <div class="logs-container-tall" id="logsContainer"></div>
-        </div>
+        <a href="/logs.html" class="view-logs-link">View all logs &rarr;</a>
     </main>
 
     <script src="/js/api.js"></script>

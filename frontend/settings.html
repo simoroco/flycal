@@ -19,12 +19,13 @@
                 <a href="/automate.html" class="nav-link">Automate</a>
                 <a href="/history.html" class="nav-link">History</a>
                 <a href="/settings.html" class="nav-link active">Settings</a>
+                <a href="/logs.html" class="nav-link">Logs</a>
             </nav>
         </div>
         <div class="header-right">
             <div class="crawler-badge" id="crawlerBadge" onclick="toggleCrawlerFromHeader()">
                 <span class="crawler-dot" id="crawlerDot"></span>
-                <span id="crawlerLabel">Crawler</span>
+                <span id="crawlerLabel">Manual & Silent Updating</span>
             </div>
         </div>
     </header>
@@ -92,7 +93,7 @@
                     </div>
                 </div>
             </div>
-            <p style="margin-bottom:10px">An email notification will be sent automatically with attached trackers.</p>
+            <p class="text-muted" style="margin-bottom:10px">An email notification will be sent automatically with attached trackers.</p>
             <div style="margin-top:10px;display:flex;gap:6px">
                 <button class="btn-sm btn-accent" onclick="testSmtp()">Test SMTP</button>
             </div>
@@ -112,7 +113,7 @@
         </section>
 
         <div class="version-footer">
-            FlyCal v4.0 &copy; 2026 simoroco
+            FlyCal v4.5 &copy; 2026 simoroco
         </div>
     </main>
 
@@ -126,10 +127,19 @@
         try {
             const res = await API.toggleGlobalCrawler();
             if (dot) dot.style.background = res.enabled ? 'var(--green)' : 'var(--red)';
-            if (label) label.textContent = res.enabled ? 'Crawler ON' : 'Crawler OFF';
-            Toast.success(res.enabled ? 'Crawler enabled' : 'Crawler disabled');
+            if (label) label.textContent = res.enabled ? 'Automate & Update Me : ON' : 'Manual & Silent Updating : OFF';
+            Toast.success(res.enabled ? 'Automate & Update Me enabled' : 'Automate & Update Me disabled');
         } catch (e) { Toast.error('Failed: ' + e.message); }
     }
+    (async () => {
+        try {
+            const s = await API.getAutomateStatus();
+            const dot = document.getElementById('crawlerDot');
+            const label = document.getElementById('crawlerLabel');
+            if (dot) dot.style.background = s.enabled ? 'var(--green)' : 'var(--red)';
+            if (label) label.textContent = s.enabled ? 'Automate & Update Me : ON' : 'Manual & Silent Updating : OFF';
+        } catch(e){}
+    })();
     </script>
 </body>
 </html>

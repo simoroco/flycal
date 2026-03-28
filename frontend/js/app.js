@@ -530,8 +530,8 @@ async function toggleCrawlerFromHeader() {
     try {
         const res = await API.toggleGlobalCrawler();
         if (dot) dot.style.background = res.enabled ? 'var(--green)' : 'var(--red)';
-        if (label) label.textContent = res.enabled ? 'Crawler ON' : 'Crawler OFF';
-        Toast.success(res.enabled ? 'Crawler enabled' : 'Crawler disabled');
+        if (label) label.textContent = res.enabled ? 'Automate & Update Me : ON' : 'Manual & Silent Updating : OFF';
+        Toast.success(res.enabled ? 'Automate & Update Me enabled' : 'Automate & Update Me disabled');
     } catch (e) {
         // Rollback on error
         if (dot) dot.style.background = wasDotBg;
@@ -542,13 +542,11 @@ async function toggleCrawlerFromHeader() {
 
 async function loadCrawlerStatus() {
     try {
-        const status = await API.getCrawlerStatus();
+        const status = await API.getAutomateStatus();
         const dot = document.getElementById('crawlerDot');
         const label = document.getElementById('crawlerLabel');
-        if (dot && label) {
-            dot.className = 'crawler-dot ' + (status.enabled ? 'active' : 'inactive');
-            label.textContent = status.enabled ? 'Stay Updated ON' : 'On-demand Only';
-        }
+        if (dot) dot.style.background = status.enabled ? 'var(--green)' : 'var(--red)';
+        if (label) label.textContent = status.enabled ? 'Automate & Update Me : ON' : 'Manual & Silent Updating : OFF';
     } catch (e) {}
 }
 

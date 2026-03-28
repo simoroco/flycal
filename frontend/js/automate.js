@@ -5,7 +5,7 @@ let globalEnabled = false;
 
 async function init() {
     await loadStatus();
-    await Promise.all([loadCrawlers(), loadLogs()]);
+    await loadCrawlers();
 }
 
 async function loadStatus() {
@@ -74,7 +74,7 @@ async function toggleGlobal() {
         const res = await API.toggleGlobalCrawler();
         await loadStatus();
         await loadCrawlers();
-        Toast.success(res.enabled ? 'Crawler enabled' : 'Crawler disabled');
+        Toast.success(res.enabled ? 'Automate & Update Me enabled' : 'Automate & Update Me disabled');
     } catch (e) { Toast.error(e.message); }
 }
 
@@ -82,7 +82,7 @@ function updateBadge(enabled) {
     const dot = document.getElementById('crawlerDot');
     const badgeLabel = document.getElementById('crawlerLabel');
     if (dot) dot.style.background = enabled ? 'var(--green)' : 'var(--red)';
-    if (badgeLabel) badgeLabel.textContent = enabled ? 'Crawler ON' : 'Crawler OFF';
+    if (badgeLabel) badgeLabel.textContent = enabled ? 'Automate & Update Me : ON' : 'Manual & Silent Updating : OFF';
 }
 
 async function scheduleLastSearch() {
@@ -102,15 +102,20 @@ async function updateSchedule(id, time) {
 }
 
 async function toggleCrawler(id, enabled) {
-    try { await API.updateCrawler(id, { enabled }); await loadStatus(); }
-    catch (e) { Toast.error(e.message); await loadCrawlers(); }
+    try {
+        await API.updateCrawler(id, { enabled });
+        const crawler = allCrawlers.find(c => c.id === id);
+        const route = crawler && crawler.search ? `${crawler.search.origin_city} → ${crawler.search.destination_city}` : '';
+        const time = crawler ? crawler.schedule_time : '';
+        Toast.success(`${route} (${time}) ${enabled ? 'enabled' : 'disabled'}`);
+        await loadStatus();
+    } catch (e) { Toast.error(e.message); await loadCrawlers(); }
 }
 
 async function runNow(id) {
     try {
         await API.runCrawler(id);
         Toast.success('Crawler started');
-        setTimeout(loadLogs, 3000);
     } catch (e) { Toast.error(e.message); }
 }
 
@@ -121,21 +126,6 @@ async function removeCrawler(id) {
         await loadCrawlers();
         await loadStatus();
     } catch (e) { Toast.error(e.message); }
-}
-
-async function loadLogs() {
-    try {
-        const logs = await API.getAutomateLogs();
-        const container = document.getElementById('logsContainer');
-        if (!logs.length) { container.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center">No logs yet</div>'; return; }
-
-        container.innerHTML = logs.map(log => {
-            const dt = log.started_at ? fmtDT(log.started_at) : '';
-            const statusClass = `status-${log.status}`;
-            const errMsg = log.error_msg ? ` — ${log.error_msg}` : '';
-            return `<div class="log-line">${dt} <span class="${statusClass}">${log.status}</span> ${log.triggered_by}${errMsg}</div>`;
-        }).join('');
-    } catch (e) { console.error('Logs error:', e); }
 }
 
 document.addEventListener('DOMContentLoaded', init);
