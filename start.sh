@@ -4,6 +4,13 @@ set -e
 echo "=== FlyCal — Flight Planner ==="
 echo "Starting build and deployment..."
 
+# Architecture check
+ARCH=$(uname -m)
+echo "Detected architecture: $ARCH"
+if [ "$ARCH" != "aarch64" ] && [ "$ARCH" != "x86_64" ]; then
+    echo "WARNING: Unsupported architecture $ARCH — build may fail."
+fi
+
 # Ensure data directory exists
 mkdir -p ./data
 
@@ -15,14 +22,14 @@ LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || ipconfig getifaddr en0 
 
 echo "Waiting for the application to be ready..."
 for i in $(seq 1 30); do
-    if curl -sf http://localhost:4444/api/health 2>/dev/null | grep -q '"ok"'; then
+    if curl -sf http://localhost:${FLYCAL_PORT:-4444}/api/health 2>/dev/null | grep -q '"ok"'; then
         echo ""
         echo "================================================"
         echo "  FlyCal is running!"
         echo ""
-        echo "  Local:   http://localhost:4444"
-        echo "  Network: http://${LOCAL_IP}:4444"
-        echo "  API:     http://localhost:4444/api/docs"
+        echo "  Local:   http://localhost:${FLYCAL_PORT:-4444}"
+        echo "  Network: http://${LOCAL_IP}:${FLYCAL_PORT:-4444}"
+        echo "  API:     http://localhost:${FLYCAL_PORT:-4444}/api/docs"
         echo "================================================"
         echo ""
         echo "Logs: docker compose logs -f"

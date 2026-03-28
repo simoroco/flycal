@@ -83,16 +83,31 @@ def delete_airline(airline_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+ALLOWED_LOGO_TYPES = {"image/png", "image/jpeg", "image/svg+xml", "image/webp", "image/gif"}
+ALLOWED_LOGO_EXTS = {".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif"}
+MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2MB
+
+
 @router.post("/{airline_id}/logo", response_model=AirlineOut)
 async def upload_logo(airline_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
     airline = db.query(Airline).filter(Airline.id == airline_id).first()
     if not airline:
         raise HTTPException(status_code=404, detail="Airline not found")
-    ext = os.path.splitext(file.filename or "logo.png")[1] or ".png"
+    # Validate MIME type
+    if file.content_type and file.content_type not in ALLOWED_LOGO_TYPES:
+        raise HTTPException(status_code=400, detail=f"File type not allowed: {file.content_type}")
+    # Validate extension
+    ext = os.path.splitext(file.filename or "logo.png")[1].lower() or ".png"
+    if ext not in ALLOWED_LOGO_EXTS:
+        raise HTTPException(status_code=400, detail=f"File extension not allowed: {ext}")
+    # Validate size
+    contents = await file.read()
+    if len(contents) > MAX_LOGO_SIZE:
+        raise HTTPException(status_code=400, detail="File too large (max 2MB)")
     filename = f"{airline_id}_{uuid.uuid4().hex[:8]}{ext}"
     filepath = os.path.join(LOGO_DIR, filename)
     with open(filepath, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+        f.write(contents)
     airline.logo_url = f"/api/airlines/logos/{filename}"
     db.commit()
     db.refresh(airline)

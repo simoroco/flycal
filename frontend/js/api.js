@@ -1,3 +1,18 @@
+/** Escape HTML special characters to prevent XSS */
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** Validate that a URL is safe for use in img src (only relative or https) */
+function safeImgUrl(url) {
+    if (!url) return '';
+    if (url.startsWith('/')) return url;
+    if (url.startsWith('https://')) return url;
+    if (url.startsWith('http://')) return url;
+    return '';
+}
+
 /** Format an ISO date/datetime string as YYYY-MM-DD or YYYY-MM-DD HH:MM */
 function fmtDT(iso, timeOnly) {
     if (!iso) return '—';
@@ -15,9 +30,18 @@ function fmtDT(iso, timeOnly) {
 
 const API = {
     BASE: '/api',
+    TIMEOUT: 30000,
+
+    _fetch(url, opts = {}) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), opts.timeout || this.TIMEOUT);
+        return fetch(url, { ...opts, signal: controller.signal })
+            .then(resp => { clearTimeout(timer); return resp; })
+            .catch(err => { clearTimeout(timer); throw err.name === 'AbortError' ? new Error('Request timed out') : err; });
+    },
 
     async get(url) {
-        const resp = await fetch(url);
+        const resp = await this._fetch(url);
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({ detail: resp.statusText }));
             throw new Error(err.detail || resp.statusText);
@@ -33,7 +57,7 @@ const API = {
         if (body !== null) {
             opts.body = JSON.stringify(body);
         }
-        const resp = await fetch(url, opts);
+        const resp = await this._fetch(url, opts);
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({ detail: resp.statusText }));
             throw new Error(err.detail || resp.statusText);
@@ -42,7 +66,7 @@ const API = {
     },
 
     async put(url, body) {
-        const resp = await fetch(url, {
+        const resp = await this._fetch(url, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
@@ -55,7 +79,7 @@ const API = {
     },
 
     async del(url) {
-        const resp = await fetch(url, { method: 'DELETE' });
+        const resp = await this._fetch(url, { method: 'DELETE' });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({ detail: resp.statusText }));
             throw new Error(err.detail || resp.statusText);

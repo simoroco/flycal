@@ -131,11 +131,12 @@
                 const created = s.created_at ? fmtDT(s.created_at) : '—';
 
                 const airlinesHtml = (s.airlines || []).map(name => {
+                    const safeName = escapeHtml(name);
                     const flight = (s.flights || []).find(f => f.airline_name === name && f.airline_logo_url);
-                    if (flight && flight.airline_logo_url) {
-                        return `<img src="${flight.airline_logo_url}" alt="${name}" title="${name}" style="width:20px;height:20px;border-radius:3px;vertical-align:middle;margin-right:2px" onerror="this.style.display='none'">`;
+                    if (flight && safeImgUrl(flight.airline_logo_url)) {
+                        return `<img src="${safeImgUrl(flight.airline_logo_url)}" alt="${safeName}" title="${safeName}" style="width:20px;height:20px;border-radius:3px;vertical-align:middle;margin-right:2px" onerror="this.style.display='none'">`;
                     }
-                    return `<span title="${name}" style="display:inline-block;width:20px;height:20px;border-radius:3px;background:var(--glass-bg);text-align:center;line-height:20px;font-size:0.5rem;font-weight:700;color:var(--accent);vertical-align:middle;margin-right:2px">${(name||'').substring(0,2).toUpperCase()}</span>`;
+                    return `<span title="${safeName}" style="display:inline-block;width:20px;height:20px;border-radius:3px;background:var(--glass-bg);text-align:center;line-height:20px;font-size:0.5rem;font-weight:700;color:var(--accent);vertical-align:middle;margin-right:2px">${escapeHtml((name||'').substring(0,2).toUpperCase())}</span>`;
                 }).join('') || 'All';
 
                 const statusClass = s.status === 'success' ? 'status-success' :
@@ -153,7 +154,7 @@
                 html += `<tr style="cursor:pointer" onclick="toggleExpand(${s.id})">
                     <td onclick="event.stopPropagation()"><input type="checkbox" class="search-checkbox" data-search-id="${s.id}" ${isChecked ? 'checked' : ''} onchange="toggleSearchCheck(${s.id}, this)"></td>
                     <td>${created}</td>
-                    <td><strong>${(s.origin_city || '').toUpperCase()}</strong> → <strong>${(s.destination_city || '').toUpperCase()}</strong></td>
+                    <td><strong>${escapeHtml((s.origin_city || '').toUpperCase())}</strong> → <strong>${escapeHtml((s.destination_city || '').toUpperCase())}</strong></td>
                     <td>${s.date_from} → ${s.date_to}</td>
                     <td>${airlinesHtml}</td>
                     <td><span class="type-badge type-${s.triggered_by || 'manual'}">${s.triggered_by === 'auto' ? 'Auto' : 'Manual'}</span></td>
@@ -223,22 +224,24 @@
                 );
                 for (const f of dayFlights) {
                     const color = searchesSettings ? getFlightColor(f, searchesSettings) : 'orange';
-                    const abbrev = (f.airline_name || '??').substring(0, 2).toUpperCase();
+                    const abbrev = escapeHtml((f.airline_name || '??').substring(0, 2).toUpperCase());
+                    const safeName = escapeHtml(f.airline_name);
+                    const safeLogo = safeImgUrl(f.airline_logo_url);
                     const duration = calculateDuration(f.departure_time, f.arrival_time);
 
                     html += `<div class="flight-row color-${color}" style="height:26px;font-size:0.72rem">`;
-                    if (f.airline_logo_url) {
-                        html += `<img src="${f.airline_logo_url}" alt="${f.airline_name}" class="flight-row-logo" style="width:20px;height:20px" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`;
+                    if (safeLogo) {
+                        html += `<img src="${safeLogo}" alt="${safeName}" class="flight-row-logo" style="width:20px;height:20px" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`;
                         html += `<span class="flight-row-abbrev" style="display:none;width:20px;font-size:0.55rem">${abbrev}</span>`;
                     } else {
                         html += `<span class="flight-row-abbrev" style="width:20px;font-size:0.55rem">${abbrev}</span>`;
                     }
-                    html += `<span class="flight-row-times">${f.departure_time || '--:--'} → ${f.arrival_time || '--:--'}</span>`;
+                    html += `<span class="flight-row-times">${escapeHtml(f.departure_time || '--:--')} → ${escapeHtml(f.arrival_time || '--:--')}</span>`;
                     if (duration) {
-                        html += `<span class="flight-row-duration">${duration}</span>`;
+                        html += `<span class="flight-row-duration">${escapeHtml(duration)}</span>`;
                     }
-                    html += `<span class="flight-row-airports">${f.origin_airport || '???'}→${f.destination_airport || '???'}</span>`;
-                    html += `<span class="flight-row-price">${Math.round(f.price)}€</span>`;
+                    html += `<span class="flight-row-airports">${escapeHtml(f.origin_airport || '???')}→${escapeHtml(f.destination_airport || '???')}</span>`;
+                    html += `<span class="flight-row-price">${Math.round(f.price)}��</span>`;
                     html += `</div>`;
                 }
             }

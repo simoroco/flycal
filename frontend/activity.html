@@ -6,16 +6,32 @@
     <title>FlyCal — Activity</title>
     <link rel="stylesheet" href="/css/main.css">
     <style>
-        html, body { height: 100%; margin: 0; }
-        body { display: flex; flex-direction: column; }
+        /* Safari-compatible full-height layout:
+           - html+body must both be 100% height (percentage chain)
+           - flex container needs overflow:hidden, NOT min-height:0, for Safari */
+        html { height: 100%; }
+        body {
+            height: 100%;
+            margin: 0;
+            display: -webkit-flex;
+            display: flex;
+            -webkit-flex-direction: column;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .header { -webkit-flex-shrink: 0; flex-shrink: 0; }
         .page-content.logs-page {
             max-width: none; padding: 20px 24px;
-            flex: 1; display: flex; flex-direction: column; min-height: 0;
+            -webkit-flex: 1 1 0px; flex: 1 1 0px;
+            display: -webkit-flex; display: flex;
+            -webkit-flex-direction: column; flex-direction: column;
+            overflow: hidden;
         }
         .logs-header { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; flex-shrink: 0; }
         .logs-header .page-title { margin-bottom: 0; }
         .logs-full {
-            flex: 1; min-height: 0; overflow-y: auto;
+            -webkit-flex: 1 1 0px; flex: 1 1 0px;
+            overflow-y: auto; -webkit-overflow-scrolling: touch;
             background: rgba(0,0,0,0.3); border-radius: var(--radius-sm);
             padding: 12px; font-family: 'Menlo','Monaco',monospace; font-size: 0.75rem;
         }
@@ -108,7 +124,10 @@
             if (!logs.length) { container.innerHTML = '<div style="color:var(--text-muted);padding:40px;text-align:center">No logs yet</div>'; return; }
             container.innerHTML = logs.map(log => {
                 const dt = log.timestamp ? fmtDT(log.timestamp) : '';
-                return `<div class="log-line"><span class="log-dt">${dt}</span><span class="log-badge ${log.type}">${log.type}</span><span class="log-action ${log.action}">${log.action}</span><span class="log-msg">${log.message}</span></div>`;
+                const safeType = escapeHtml(log.type);
+                const safeAction = escapeHtml(log.action);
+                const safeMsg = escapeHtml(log.message);
+                return `<div class="log-line"><span class="log-dt">${dt}</span><span class="log-badge ${safeType}">${safeType}</span><span class="log-action ${safeAction}">${safeAction}</span><span class="log-msg">${safeMsg}</span></div>`;
             }).join('');
         } catch (e) { console.error('Logs error:', e); }
     }

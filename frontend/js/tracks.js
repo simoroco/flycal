@@ -38,13 +38,16 @@ function renderTrackCard(track) {
     }
     const dir = track.direction === 'outbound' ? 'OUT' : 'RET';
 
+    const safeLogo = safeImgUrl(track.airline_logo_url);
+    const safeName = escapeHtml(track.airline_name);
+    const safeDir = escapeHtml(track.direction);
     return `
-    <div class="track-card" data-track-id="${track.id}">
+    <div class="track-card" data-track-id="${parseInt(track.id)}">
         <div class="track-top-band">
-            ${track.airline_logo_url ? `<img src="${track.airline_logo_url}" class="track-logo" onerror="this.style.display='none'">` : ''}
-            <span class="track-airline">${track.airline_name}</span>
-            <span class="track-dir ${track.direction}">${dir}</span>
-            <span class="track-route">${track.origin_airport}\u2192${track.destination_airport}</span>
+            ${safeLogo ? `<img src="${safeLogo}" class="track-logo" onerror="this.style.display='none'">` : ''}
+            <span class="track-airline">${safeName}</span>
+            <span class="track-dir ${safeDir}">${escapeHtml(dir)}</span>
+            <span class="track-route">${escapeHtml(track.origin_airport)}\u2192${escapeHtml(track.destination_airport)}</span>
             <span class="track-sep">|</span>
             <span class="track-val">${track.flight_date} ${track.departure_time}</span>
             <span class="track-sep">|</span>

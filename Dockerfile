@@ -40,4 +40,4 @@ RUN mkdir -p /app/data
 
 EXPOSE 4444
 
-CMD ["sh", "-c", "caddy run --config /app/Caddyfile & cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 4445"]
+CMD ["sh", "-c", "caddy run --config /app/Caddyfile & cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 4445 --timeout-keep-alive 30"]

@@ -19,6 +19,12 @@ class SettingsUpdate(BaseModel):
 
 _NUMERIC_SETTINGS = {"ideal_price", "smtp_port", "crawler_interval"}
 
+_ALLOWED_SETTINGS = {
+    "ideal_price", "smtp_host", "smtp_port", "smtp_user", "smtp_password",
+    "smtp_to", "smtp_send_enabled", "server_hostname", "time_slots",
+    "crawler_enabled", "crawler_interval", "automation_enabled",
+}
+
 
 def _get_all_settings(db: Session) -> dict:
     rows = db.query(Setting).all()
@@ -50,6 +56,8 @@ def get_settings(db: Session = Depends(get_db)):
 @router.put("")
 def update_settings(data: SettingsUpdate, db: Session = Depends(get_db)):
     for key, value in data.settings.items():
+        if key not in _ALLOWED_SETTINGS:
+            raise HTTPException(status_code=400, detail=f"Unknown setting: {key}")
         if isinstance(value, bool):
             str_value = "true" if value else "false"
         elif isinstance(value, (list, dict)):

@@ -8,7 +8,13 @@ services:
       - ./data:/app/data
     environment:
       - TZ=${TZ:-Europe/Paris}
+    shm_size: '2gb'
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:4444/api/health"]
       interval: 30s

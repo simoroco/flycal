@@ -66,7 +66,9 @@ def _search_to_dict(s):
 
 
 @router.get("")
-def list_searches(db: Session = Depends(get_db)):
+def list_searches(limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
+    limit = min(max(1, limit), 200)
+    offset = max(0, offset)
     searches = (
         db.query(Search)
         .options(
@@ -74,6 +76,8 @@ def list_searches(db: Session = Depends(get_db)):
             joinedload(Search.crawler_logs),
         )
         .order_by(Search.created_at.desc())
+        .offset(offset)
+        .limit(limit)
         .all()
     )
     return [_search_to_dict(s) for s in searches]

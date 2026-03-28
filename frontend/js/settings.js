@@ -112,31 +112,32 @@ function renderAirlines() {
     }
 
     container.innerHTML = settingsAirlines.map(a => {
-        const logoSrc = a.logo_url || '';
-        const logoPreview = logoSrc
-            ? `<img src="${logoSrc}" alt="${a.name}" class="airline-logo-preview" onerror="this.style.display='none'">`
-            : `<div class="airline-logo-placeholder">${(a.name || '??').substring(0,2).toUpperCase()}</div>`;
+        const safeLogo = safeImgUrl(a.logo_url);
+        const safeName = escapeHtml(a.name);
+        const logoPreview = safeLogo
+            ? `<img src="${safeLogo}" alt="${safeName}" class="airline-logo-preview" onerror="this.style.display='none'">`
+            : `<div class="airline-logo-placeholder">${escapeHtml((a.name || '??').substring(0,2).toUpperCase())}</div>`;
         return `
-        <div class="airline-row" data-id="${a.id}">
+        <div class="airline-row" data-id="${parseInt(a.id)}">
             <div class="airline-logo-cell">
                 ${logoPreview}
             </div>
-            <input type="text" class="input-field" value="${a.name}" data-field="name" placeholder="Name">
+            <input type="text" class="input-field" value="${safeName}" data-field="name" placeholder="Name">
             <label style="font-size:0.75rem;color:var(--text-muted)">Fixed fees (€)</label>
-            <input type="number" class="input-field input-sm" value="${a.fees_fixed}" data-field="fees_fixed" step="0.01" min="0">
+            <input type="number" class="input-field input-sm" value="${parseFloat(a.fees_fixed) || 0}" data-field="fees_fixed" step="0.01" min="0">
             <label style="font-size:0.75rem;color:var(--text-muted)">Fees (%)</label>
-            <input type="number" class="input-field input-sm" value="${a.fees_percent}" data-field="fees_percent" step="0.01" min="0">
-            <div class="toggle-switch ${a.enabled ? 'active' : ''}" onclick="toggleAirlineEnabled(${a.id}, this)">
+            <input type="number" class="input-field input-sm" value="${parseFloat(a.fees_percent) || 0}" data-field="fees_percent" step="0.01" min="0">
+            <div class="toggle-switch ${a.enabled ? 'active' : ''}" onclick="toggleAirlineEnabled(${parseInt(a.id)}, this)">
                 <div class="toggle-slider"></div>
             </div>
             <div class="airline-logo-actions">
-                <input type="text" class="input-field input-sm" value="${logoSrc}" data-field="logo_url" placeholder="Logo URL">
+                <input type="text" class="input-field input-sm" value="${escapeHtml(safeLogo)}" data-field="logo_url" placeholder="Logo URL">
                 <label class="btn-sm btn-secondary logo-upload-btn">
                     📁
-                    <input type="file" accept="image/*" style="display:none" onchange="uploadLogo(${a.id}, this)">
+                    <input type="file" accept="image/*" style="display:none" onchange="uploadLogo(${parseInt(a.id)}, this)">
                 </label>
             </div>
-            <button class="btn-sm btn-danger" onclick="deleteAirline(${a.id})">Delete</button>
+            <button class="btn-sm btn-danger" onclick="deleteAirline(${parseInt(a.id)})">Delete</button>
         </div>`;
     }).join('');
 }

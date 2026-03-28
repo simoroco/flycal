@@ -22,8 +22,8 @@ def crawler_status(db: Session = Depends(get_db)):
     enabled = _get_setting(db, "crawler_enabled", "false") == "true"
     crawler_time = _get_setting(db, "crawler_time", "07:00")
     last_log = db.query(CrawlerLog).order_by(CrawlerLog.started_at.desc()).first()
-    from scheduler import get_next_run_time
-    next_run = get_next_run_time()
+    from scheduler import get_next_run_times
+    next_run = get_next_run_times()
 
     # Crawler target search info
     crawler_search_id = _get_setting(db, "crawler_search_id", "")

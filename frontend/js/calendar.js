@@ -141,28 +141,31 @@ function renderCalendar(container, flights, selectedId, onSelect, settings) {
             const abbrev = airlineAbbrev(f.airline_name);
 
             html += `<div class="flight-card color-${color}${isSelected ? ' selected' : ''}" data-flight-id="${f.id}">`;
+            const safeLogo = safeImgUrl(f.airline_logo_url);
+            const safeName = escapeHtml(f.airline_name);
+            const safeAbbrev = escapeHtml(abbrev);
             html += `<div class="flight-airline">`;
-            if (f.airline_logo_url) {
-                html += `<img src="${f.airline_logo_url}" alt="${f.airline_name}" class="airline-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`;
-                html += `<div class="airline-logo" style="display:none">${abbrev}</div>`;
+            if (safeLogo) {
+                html += `<img src="${safeLogo}" alt="${safeName}" class="airline-logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`;
+                html += `<div class="airline-logo" style="display:none">${safeAbbrev}</div>`;
             } else {
-                html += `<div class="airline-logo">${abbrev}</div>`;
+                html += `<div class="airline-logo">${safeAbbrev}</div>`;
             }
-            html += `<div class="airline-name">${f.airline_name || ''}</div>`;
+            html += `<div class="airline-name">${safeName}</div>`;
             html += `</div>`;
             html += `<div class="flight-details">`;
             html += `<div class="flight-times">`;
-            html += `<span class="flight-time">${f.departure_time || '--:--'}</span>`;
+            html += `<span class="flight-time">${escapeHtml(f.departure_time || '--:--')}</span>`;
             html += `<span class="flight-arrow">→</span>`;
-            html += `<span class="flight-time">${f.arrival_time || '--:--'}</span>`;
+            html += `<span class="flight-time">${escapeHtml(f.arrival_time || '--:--')}</span>`;
             if (duration) {
                 html += `<span class="flight-duration">${duration}</span>`;
             }
             html += `</div>`;
             html += `<div class="flight-airports">`;
-            html += `<span class="airport-code">${f.origin_airport || '???'}</span>`;
+            html += `<span class="airport-code">${escapeHtml(f.origin_airport || '???')}</span>`;
             html += `<span class="flight-arrow">→</span>`;
-            html += `<span class="airport-code">${f.destination_airport || '???'}</span>`;
+            html += `<span class="airport-code">${escapeHtml(f.destination_airport || '???')}</span>`;
             html += `</div>`;
             html += `</div>`;
             html += `<div class="flight-price">`;

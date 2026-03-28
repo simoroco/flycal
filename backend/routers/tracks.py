@@ -299,7 +299,7 @@ def update_alert(track_id: int, alert_id: int, req: AlertUpdateRequest, db: Sess
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
 
-    for field, val in req.dict(exclude_unset=True).items():
+    for field, val in req.model_dump(exclude_unset=True).items():
         setattr(alert, field, val)
 
     db.commit()

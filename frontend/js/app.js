@@ -224,7 +224,7 @@ async function checkForBackgroundSearch() {
             showSearchingState();
 
             // Resume timer from actual server-side start time instead of resetting to 0
-            if (status.started_at) {
+            if (status.started_at && typeof status.started_at === 'string') {
                 stopSearchTimer();
                 const startedAtStr = status.started_at.endsWith('Z') ? status.started_at : status.started_at + 'Z';
                 searchStartTime = new Date(startedAtStr).getTime();
@@ -257,13 +257,15 @@ async function loadAirlineToggles() {
         container.innerHTML = airlinesList
             .filter(a => a.enabled)
             .map(a => {
-                const logoHtml = a.logo_url
-                    ? `<img src="${a.logo_url}" alt="${a.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                const safeName = escapeHtml(a.name);
+                const safeLogo = safeImgUrl(a.logo_url);
+                const logoHtml = safeLogo
+                    ? `<img src="${safeLogo}" alt="${safeName}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
                     : '';
-                const abbrev = (a.name || '??').substring(0, 2).toUpperCase();
-                return `<div class="airline-toggle active" data-airline="${a.name}" onclick="toggleAirline(this)" title="${a.name}">
+                const abbrev = escapeHtml((a.name || '??').substring(0, 2).toUpperCase());
+                return `<div class="airline-toggle active" data-airline="${safeName}" onclick="toggleAirline(this)" title="${safeName}">
                     ${logoHtml}
-                    <span class="at-abbrev" ${a.logo_url ? 'style="display:none"' : ''}>${abbrev}</span>
+                    <span class="at-abbrev" ${safeLogo ? 'style="display:none"' : ''}>${abbrev}</span>
                 </div>`;
             }).join('');
     } catch (e) {
@@ -579,7 +581,7 @@ async function loadCrawlerStatus() {
         const label = document.getElementById('crawlerLabel');
         if (dot) dot.style.background = status.enabled ? 'var(--green)' : 'var(--red)';
         if (label) label.textContent = status.enabled ? 'Automate & Update Me : ON' : 'Manual & Silent Updating : OFF';
-    } catch (e) {}
+    } catch (e) { console.warn('Failed to load crawler status:', e.message); }
 }
 
 // ── URL params handling ──
@@ -949,33 +951,37 @@ function renderFlights() {
 
 function renderDayFlights(flights, direction, isDimmed) {
     let html = '';
+    const safeDir = escapeHtml(direction);
     for (const f of flights) {
         const color = appSettings ? getFlightColor(f, appSettings) : 'orange';
         const isSelected = (direction === 'outbound' && selectedOutbound && selectedOutbound.id === f.id) ||
                           (direction === 'return' && selectedReturn && selectedReturn.id === f.id);
         const duration = calculateDuration(f.departure_time, f.arrival_time);
-        const abbrev = airlineAbbrev(f.airline_name);
+        const abbrev = escapeHtml(airlineAbbrev(f.airline_name));
+        const safeLogo = safeImgUrl(f.airline_logo_url);
+        const safeName = escapeHtml(f.airline_name);
+        const fid = parseInt(f.id);
 
         html += `<div class="flight-row color-${color}${isSelected ? ' selected' : ''}${isDimmed ? ' dim' : ''}"
-                      data-flight-id="${f.id}"
-                      onclick="handleFlightClick(${f.id}, '${direction}')"
-                      ondblclick="handleFlightTrack(${f.id}, '${direction}', event)"
-                      oncontextmenu="showFlightContextMenu(event, ${f.id}, '${direction}')"
-                      onmouseenter="showPriceHistory(this, ${f.id})"
+                      data-flight-id="${fid}"
+                      onclick="handleFlightClick(${fid}, '${safeDir}')"
+                      ondblclick="handleFlightTrack(${fid}, '${safeDir}', event)"
+                      oncontextmenu="showFlightContextMenu(event, ${fid}, '${safeDir}')"
+                      onmouseenter="showPriceHistory(this, ${fid})"
                       onmouseleave="hidePriceHistory(this)">`;
 
-        if (f.airline_logo_url) {
-            html += `<img src="${f.airline_logo_url}" alt="${f.airline_name}" class="flight-row-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`;
+        if (safeLogo) {
+            html += `<img src="${safeLogo}" alt="${safeName}" class="flight-row-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`;
             html += `<span class="flight-row-abbrev" style="display:none">${abbrev}</span>`;
         } else {
             html += `<span class="flight-row-abbrev">${abbrev}</span>`;
         }
 
-        html += `<span class="flight-row-times">${f.departure_time || '--:--'} → ${f.arrival_time || '--:--'}</span>`;
+        html += `<span class="flight-row-times">${escapeHtml(f.departure_time || '--:--')} → ${escapeHtml(f.arrival_time || '--:--')}</span>`;
         if (duration) {
-            html += `<span class="flight-row-duration">${duration}</span>`;
+            html += `<span class="flight-row-duration">${escapeHtml(duration)}</span>`;
         }
-        html += `<span class="flight-row-airports">${f.origin_airport || '???'}→${f.destination_airport || '???'}</span>`;
+        html += `<span class="flight-row-airports">${escapeHtml(f.origin_airport || '???')}→${escapeHtml(f.destination_airport || '???')}</span>`;
 
         const trackKey = flightTrackKey(f);
         const isTracked = !!trackedFlightKeys[trackKey];
@@ -1012,13 +1018,12 @@ async function showPriceHistory(el, flightId) {
         const history = await API.getPriceHistory(flightId);
         if (history && history.length > 1) {
             dropdown.innerHTML = history.map(h => {
-                const date = new Date(h.recorded_at);
-                const dateStr = fmtDT(h.recorded_at);
+                const dateStr = escapeHtml(fmtDT(h.recorded_at));
                 return `<div class="ph-entry"><span class="ph-date">${dateStr}</span><span class="ph-price">${Math.round(h.price)}€</span></div>`;
             }).join('');
             dropdown.classList.remove('hidden');
         }
-    } catch (e) {}
+    } catch (e) { console.warn('Price history load failed:', e.message); }
 }
 
 function hidePriceHistory(el) {
@@ -1102,7 +1107,7 @@ function showFlightContextMenu(event, flightId, direction) {
     const menu = document.createElement('div');
     menu.id = 'flightContextMenu';
     menu.className = 'flight-context-menu';
-    menu.innerHTML = `<div class="ctx-item" onclick="handleFlightTrack(${flightId}, '${direction}', event)">${isTracked ? 'Untrack' : 'Track'}</div>`;
+    menu.innerHTML = `<div class="ctx-item" onclick="handleFlightTrack(${parseInt(flightId)}, '${escapeHtml(direction)}', event)">${isTracked ? 'Untrack' : 'Track'}</div>`;
     menu.style.left = event.pageX + 'px';
     menu.style.top = event.pageY + 'px';
     document.body.appendChild(menu);
