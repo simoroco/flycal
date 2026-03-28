@@ -843,11 +843,13 @@ function autoSelectBestFlights() {
 
 // ── Week helpers ──
 function getISOWeekNumber(dateStr) {
+    // Use local time consistently (not UTC) to avoid timezone mismatches
     const d = new Date(dateStr + 'T00:00:00');
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    const dayNum = d.getDay() || 7; // local day of week, Mon=1..Sun=7
+    const thursday = new Date(d);
+    thursday.setDate(d.getDate() + 4 - dayNum); // nearest Thursday
+    const yearStart = new Date(thursday.getFullYear(), 0, 1);
+    return Math.ceil((((thursday - yearStart) / 86400000) + 1) / 7);
 }
 
 function getMondayOfWeek(dateStr) {
