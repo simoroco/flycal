@@ -115,7 +115,8 @@ async function toggleCrawler(id, enabled) {
 async function runNow(id) {
     try {
         await API.runCrawler(id);
-        Toast.success('Crawler started');
+        // Redirect to Scan page so user can see the search running
+        window.location.href = '/';
     } catch (e) { Toast.error(e.message); }
 }
 
