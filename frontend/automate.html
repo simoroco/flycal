@@ -10,6 +10,7 @@
 
         .automate-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
         .automate-header .page-title { margin-bottom: 0; }
+        .automate-header-right { display: flex; align-items: center; gap: 12px; margin-left: auto; flex-wrap: wrap; }
 
         .global-toggle { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
         .global-toggle .toggle-label { color: var(--text-muted); }
@@ -93,26 +94,28 @@
     <main class="page-content automate-page">
         <div class="automate-header">
             <h1 class="page-title">Automate</h1>
-            <div class="global-toggle">
-                <span class="toggle-label">Global</span>
-                <label class="auto-switch">
-                    <input type="checkbox" id="globalToggle" onchange="toggleGlobal()">
-                    <span class="auto-slider"></span>
-                </label>
+            <div class="automate-header-right">
                 <span id="globalStatus" style="font-size:0.75rem;color:var(--text-muted)"></span>
+                <div class="global-toggle">
+                    <span class="toggle-label">Global</span>
+                    <label class="auto-switch">
+                        <input type="checkbox" id="globalToggle" onchange="toggleGlobal()">
+                        <span class="auto-slider"></span>
+                    </label>
+                </div>
+                <button class="btn-sm btn-accent" onclick="scheduleLastSearch()">+ Automate Last Scan</button>
             </div>
-            <button class="btn-sm btn-accent" onclick="scheduleLastSearch()">+ Schedule last search</button>
         </div>
 
         <div id="crawlerList" class="crawler-list">
             <div class="crawler-empty">Loading...</div>
         </div>
 
-        <a href="/activity.html" class="view-logs-link">View all logs &rarr;</a>
     </main>
 
     <script src="/js/api.js"></script>
     <script src="/js/toast.js"></script>
+    <script src="/js/logo-status.js"></script>
     <script src="/js/automate.js"></script>
 </body>
 </html>

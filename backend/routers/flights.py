@@ -133,6 +133,35 @@ def _search_to_dict(s: Search, db=None) -> dict:
     }
 
 
+@router.get("/running")
+def get_running_search(db: Session = Depends(get_db)):
+    """Return info about the currently running search (if any)."""
+    with _abort_lock:
+        rid = _running_search_id
+    if not rid:
+        return {"running": False, "search_id": None, "search": None}
+    search = db.query(Search).filter(Search.id == rid).first()
+    if not search:
+        return {"running": True, "search_id": rid, "search": None}
+    airlines_list = []
+    try:
+        airlines_list = json.loads(search.airlines)
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return {
+        "running": True,
+        "search_id": rid,
+        "search": {
+            "id": search.id,
+            "origin_city": search.origin_city,
+            "destination_city": search.destination_city,
+            "date_from": search.date_from.isoformat() if search.date_from else "",
+            "date_to": search.date_to.isoformat() if search.date_to else "",
+            "airlines": airlines_list,
+        },
+    }
+
+
 @router.get("/last")
 def get_last_search(db: Session = Depends(get_db)):
     search = (

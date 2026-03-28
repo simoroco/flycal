@@ -46,7 +46,7 @@
 - 🤖 **Automatic Crawler** — Scheduled runs at 7:00 and 22:00 with configurable email alerts
 - 🎯 **Smart Color Coding** — Flights color-coded by time slots (green/orange/red) and price proximity
 - 📧 **Email Notifications** — Receive daily recap of best prices via SMTP
-- 🔄 **Search History** — Review and reuse past searches with compact flight previews
+- 🔄 **Search History** — Review and re-scan past searches with compact flight previews
 - 🌙 **Liquid Glass Dark UI** — Modern dark-mode interface with glassmorphism design
 - 🐳 **Docker Deployment** — Single-command production deployment with Caddy HTTPS
 

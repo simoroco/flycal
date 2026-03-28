@@ -79,6 +79,10 @@ const API = {
         return this.get('/api/flights/last');
     },
 
+    async getRunningSearch() {
+        return this.get('/api/flights/running');
+    },
+
     async launchSearch(params) {
         return this.post('/api/flights/search', params);
     },

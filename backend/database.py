@@ -391,5 +391,14 @@ def init_db():
             if not existing:
                 db.add(Setting(key=key, value=value))
         db.commit()
+
+        # Mark any stale "running" logs as "error" (server restart mid-scan)
+        stale = db.query(CrawlerLog).filter(CrawlerLog.status == "running").all()
+        for log in stale:
+            log.status = "error"
+            log.error_msg = "Interrupted (server restart)"
+            log.ended_at = datetime.utcnow()
+        if stale:
+            db.commit()
     finally:
         db.close()

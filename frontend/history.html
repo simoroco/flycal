@@ -69,6 +69,7 @@
 
     <script src="/js/api.js"></script>
     <script src="/js/toast.js"></script>
+    <script src="/js/logo-status.js"></script>
     <script src="/js/calendar.js"></script>
     <script>
         let allSearches = [];
@@ -162,7 +163,7 @@
                     <td>${min != null ? Math.round(min) + '€' : '—'}</td>
                     <td>${max != null ? Math.round(max) + '€' : '—'}</td>
                     <td class="actions-cell" onclick="event.stopPropagation()">
-                        <button class="btn-sm btn-accent" onclick="reuseSearch(${s.id})">Reuse</button>
+                        <button class="btn-sm btn-accent" onclick="reuseSearch(${s.id})">Re-Scan</button>
                         <button class="btn-sm btn-secondary" onclick="scheduleAsCrawler(${s.id})" ${crawlerSearchIds.has(s.id) ? 'disabled style="opacity:0.5"' : ''}>
                             ${crawlerSearchIds.has(s.id) ? '&#9200; Scheduled' : '&#9200; Schedule'}
                         </button>

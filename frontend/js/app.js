@@ -12,6 +12,7 @@ let isSearching = false;
 let searchTimerInterval = null;
 let searchStartTime = null;
 let trackedFlightKeys = {}; // key -> track_id
+let activeCrawlers = []; // loaded crawlers for automation indicator
 
 // ── Init ──
 async function init() {
@@ -25,6 +26,7 @@ async function init() {
     ]);
     handleUrlParams();
     await loadTrackedFlightKeys();
+    await loadActiveCrawlers();
     // Always load last search info (dates, airports, etc.)
     await loadLastSearchInfo();
     // Check if a background search is still running
@@ -178,6 +180,7 @@ async function loadLastSearchInfo() {
                 autoSelectBestFlights();
             }
         }
+        updateAutomationDot();
     } catch (e) {
         console.error('Failed to load last search info:', e);
     }
@@ -186,63 +189,41 @@ async function loadLastSearchInfo() {
 // ── Check for background search (crawler running) ──
 async function checkForBackgroundSearch() {
     try {
-        const status = await API.getCrawlerStatus();
-        if (status && status.last_run && status.last_run.status === 'running') {
-            // A search is running in background, resume polling — clear old results
-            const data = await API.getLastSearch();
-            if (data && data.id) {
-                isSearching = true;
-                currentSearchId = data.id;
-                allFlights = [];
+        const status = await API.getRunningSearch();
+        if (status && status.running && status.search) {
+            const data = status.search;
+            isSearching = true;
+            currentSearchId = data.id;
+            allFlights = [];
 
-                // Populate search parameters in the UI
-                if (data.origin_city) document.getElementById('originCity').value = data.origin_city.toUpperCase();
-                if (data.destination_city) document.getElementById('destinationCity').value = data.destination_city.toUpperCase();
-                if (data.date_from) { document.getElementById('dateFrom').value = data.date_from; syncDateDisplay('dateFrom'); }
-                if (data.date_to) { document.getElementById('dateTo').value = data.date_to; syncDateDisplay('dateTo'); }
+            // Populate search parameters in the UI
+            if (data.origin_city) document.getElementById('originCity').value = data.origin_city.toUpperCase();
+            if (data.destination_city) document.getElementById('destinationCity').value = data.destination_city.toUpperCase();
+            if (data.date_from) { document.getElementById('dateFrom').value = data.date_from; syncDateDisplay('dateFrom'); }
+            if (data.date_to) { document.getElementById('dateTo').value = data.date_to; syncDateDisplay('dateTo'); }
 
-                // Set airline toggles to match the running search
-                if (data.airlines && data.airlines.length > 0) {
-                    const searchAirlines = data.airlines.map(a => a.toUpperCase());
-                    document.querySelectorAll('.airline-toggle').forEach(el => {
-                        const name = (el.dataset.airline || '').toUpperCase();
-                        if (searchAirlines.includes(name)) {
-                            el.classList.add('active');
-                        } else {
-                            el.classList.remove('active');
-                        }
-                    });
-                }
-
-                // Update progress text
-                const origin = data.origin_city || '';
-                const dest = data.destination_city || '';
-                const progressText = document.getElementById('progressText');
-                if (progressText) progressText.textContent = `${origin} → ${dest} | ${data.date_from || ''} → ${data.date_to || ''}`;
-
-                showSearchingState();
-
-                // Resume timer from actual search start time
-                if (status.last_run.started_at) {
-                    const startedAtStr = status.last_run.started_at.endsWith('Z') ? status.last_run.started_at : status.last_run.started_at + 'Z';
-                    const serverStart = new Date(startedAtStr).getTime();
-                    searchStartTime = serverStart;
-                    const timerEl = document.getElementById('searchTimer');
-                    const estimateEl = document.getElementById('searchEstimate');
-                    if (estimateEl) estimateEl.textContent = '';
-                    if (searchTimerInterval) clearInterval(searchTimerInterval);
-                    searchTimerInterval = setInterval(() => {
-                        if (!searchStartTime || !timerEl) return;
-                        const elapsed = Math.floor((Date.now() - searchStartTime) / 1000);
-                        const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
-                        const ss = String(elapsed % 60).padStart(2, '0');
-                        timerEl.textContent = `⏱ ${mm}:${ss}`;
-                    }, 1000);
-                }
-
-                startPolling(data.id);
-                console.log(`[FlyCal Crawler] Resumed polling for background search #${data.id}`);
+            // Set airline toggles to match the running search
+            if (data.airlines && data.airlines.length > 0) {
+                const searchAirlines = data.airlines.map(a => a.toUpperCase());
+                document.querySelectorAll('.airline-toggle').forEach(el => {
+                    const name = (el.dataset.airline || '').toUpperCase();
+                    if (searchAirlines.includes(name)) {
+                        el.classList.add('active');
+                    } else {
+                        el.classList.remove('active');
+                    }
+                });
             }
+
+            // Update progress text
+            const origin = data.origin_city || '';
+            const dest = data.destination_city || '';
+            const progressText = document.getElementById('progressText');
+            if (progressText) progressText.textContent = `${origin} → ${dest} | ${data.date_from || ''} → ${data.date_to || ''}`;
+
+            showSearchingState();
+            startPolling(data.id);
+            console.log(`[FlyCal] Resumed polling for background search #${data.id}`);
         }
     } catch (e) {
         console.error('Failed to check background search:', e);
@@ -273,6 +254,7 @@ async function loadAirlineToggles() {
 
 function toggleAirline(el) {
     el.classList.toggle('active');
+    updateAutomationDot();
 }
 
 function toggleAllAirlines() {
@@ -282,6 +264,7 @@ function toggleAllAirlines() {
         if (allActive) t.classList.remove('active');
         else t.classList.add('active');
     });
+    updateAutomationDot();
 }
 
 function swapCities() {
@@ -520,6 +503,36 @@ async function loadCityList() {
     }
 }
 
+// ── Automation indicator on scan button ──
+async function loadActiveCrawlers() {
+    try {
+        activeCrawlers = await API.getCrawlers();
+        updateAutomationDot();
+    } catch (e) { /* ignore */ }
+}
+
+function updateAutomationDot() {
+    const dot = document.getElementById('automationDot');
+    if (!dot) return;
+    const origin = (document.getElementById('originCity').value || '').trim().toUpperCase();
+    const dest = (document.getElementById('destinationCity').value || '').trim().toUpperCase();
+    const dateFrom = document.getElementById('dateFrom').value || '';
+    const dateTo = document.getElementById('dateTo').value || '';
+    const selectedAirlines = getSelectedAirlines().map(a => a.toUpperCase()).sort().join(',');
+
+    const matched = activeCrawlers.some(c => {
+        if (!c.enabled || !c.search) return false;
+        const s = c.search;
+        const crawlerAirlines = (s.airlines || []).map(a => a.toUpperCase()).sort().join(',');
+        return s.origin_city.toUpperCase() === origin
+            && s.destination_city.toUpperCase() === dest
+            && s.date_from === dateFrom
+            && s.date_to === dateTo
+            && crawlerAirlines === selectedAirlines;
+    });
+    dot.style.display = matched ? 'inline-block' : 'none';
+}
+
 // ── Crawler toggle from header ──
 async function toggleCrawlerFromHeader() {
     // Immediate visual feedback
@@ -575,7 +588,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (el) {
             el.addEventListener('input', () => {
                 el.value = el.value.toUpperCase();
+                updateAutomationDot();
             });
+            el.addEventListener('change', () => updateAutomationDot());
         }
     });
     // Auto-show date picker on click
@@ -585,6 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
             el.addEventListener('click', () => {
                 if (el.showPicker) el.showPicker();
             });
+            el.addEventListener('change', () => updateAutomationDot());
         }
     });
 });

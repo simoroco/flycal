@@ -32,7 +32,7 @@ async function loadCrawlers() {
 function renderCrawlers() {
     const c = document.getElementById('crawlerList');
     if (!allCrawlers.length) {
-        c.innerHTML = '<div class="crawler-empty">No scheduled crawlers.<br>Click "Schedule last search" or use the History page to add one.</div>';
+        c.innerHTML = '<div class="crawler-empty">No scheduled crawlers.<br>Click "Automate Last Scan" or use the History page to add one.</div>';
         return;
     }
     c.innerHTML = allCrawlers.map(renderCrawlerRow).join('');
