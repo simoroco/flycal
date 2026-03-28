@@ -166,7 +166,7 @@
                     <td class="actions-cell" onclick="event.stopPropagation()">
                         <button class="btn-sm btn-accent" onclick="reuseSearch(${s.id})">Re-Scan</button>
                         <button class="btn-sm btn-secondary" onclick="scheduleAsCrawler(${s.id})" ${crawlerSearchIds.has(s.id) ? 'disabled style="opacity:0.5"' : ''}>
-                            ${crawlerSearchIds.has(s.id) ? '&#9200; Scheduled' : '&#9200; Schedule'}
+                            ${crawlerSearchIds.has(s.id) ? '&#128197; Scheduled' : '&#128197; Schedule'}
                         </button>
                     </td>
                 </tr>`;

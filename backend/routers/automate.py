@@ -136,7 +136,8 @@ async def run_crawler(crawler_id: int, db: Session = Depends(get_db)):
     if not source_search:
         raise HTTPException(status_code=404, detail="Source search not found")
 
-    # Create new search
+    # Create new search — set is_last so Scan page picks it up
+    db.query(Search).filter(Search.is_last == True).update({"is_last": False})
     new_search = Search(
         origin_city=source_search.origin_city,
         destination_city=source_search.destination_city,
@@ -144,7 +145,8 @@ async def run_crawler(crawler_id: int, db: Session = Depends(get_db)):
         date_to=source_search.date_to,
         trip_type=source_search.trip_type,
         airlines=source_search.airlines,
-        is_last=False,
+        is_last=True,
+        created_at=datetime.utcnow(),
     )
     db.add(new_search)
     db.commit()
