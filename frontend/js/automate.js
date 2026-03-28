@@ -2,10 +2,28 @@
 
 let allCrawlers = [];
 let globalEnabled = false;
+let scanRunning = false;
+let scanPollTimer = null;
 
 async function init() {
+    await checkScanRunning();
+    startScanPoll();
     await loadStatus();
     await loadCrawlers();
+}
+
+async function checkScanRunning() {
+    try {
+        const status = await API.getRunningSearch();
+        const wasRunning = scanRunning;
+        scanRunning = !!(status && status.running);
+        if (wasRunning !== scanRunning) renderCrawlers();
+    } catch (e) { /* ignore */ }
+}
+
+function startScanPoll() {
+    if (scanPollTimer) clearInterval(scanPollTimer);
+    scanPollTimer = setInterval(checkScanRunning, 5000);
 }
 
 async function loadStatus() {
@@ -25,7 +43,7 @@ async function loadCrawlers() {
         allCrawlers = await API.getCrawlers();
         renderCrawlers();
     } catch (e) {
-        document.getElementById('crawlerList').innerHTML = `<div class="crawler-empty">Error: ${e.message}</div>`;
+        document.getElementById('crawlerList').innerHTML = `<div class="crawler-empty">Error: ${escapeHtml(e.message)}</div>`;
     }
 }
 
@@ -46,13 +64,14 @@ function renderCrawlerRow(crawler) {
     const options = times.map(t => `<option value="${t}" ${t === crawler.schedule_time ? 'selected' : ''}>${t}</option>`).join('');
     const disabledAttr = globalEnabled ? '' : 'disabled';
     const rowClass = globalEnabled ? 'crawler-row' : 'crawler-row disabled';
+    const scanDisabled = scanRunning ? 'disabled style="opacity:0.5"' : '';
 
     return `<div class="${rowClass}">
-        <span class="crawler-route">${s.origin_city} → ${s.destination_city}</span>
+        <span class="crawler-route">${escapeHtml(s.origin_city)} → ${escapeHtml(s.destination_city)}</span>
         <span class="crawler-sep">|</span>
-        <span class="crawler-dates">${s.date_from} → ${s.date_to}</span>
+        <span class="crawler-dates">${escapeHtml(s.date_from)} → ${escapeHtml(s.date_to)}</span>
         <span class="crawler-sep">|</span>
-        <span class="crawler-airlines" title="${airlines}">${airlines}</span>
+        <span class="crawler-airlines" title="${escapeHtml(airlines)}">${escapeHtml(airlines)}</span>
         <span class="crawler-sep">|</span>
         <span class="crawler-schedule">
             <select onchange="updateSchedule(${crawler.id}, this.value)">${options}</select>
@@ -63,7 +82,7 @@ function renderCrawlerRow(crawler) {
             <span class="auto-slider"></span>
         </label>
         <div class="crawler-actions">
-            <button class="btn-sm btn-ghost" onclick="runNow(${crawler.id})">Run now</button>
+            <button class="btn-sm btn-ghost" onclick="runNow(${crawler.id})" ${scanDisabled}>Scan</button>
             <button class="btn-sm btn-danger" onclick="removeCrawler(${crawler.id})">Delete</button>
         </div>
     </div>`;

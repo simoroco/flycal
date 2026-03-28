@@ -77,6 +77,8 @@
         let expandedSearchId = null;
         let selectedSearchIds = new Set();
         let crawlerSearchIds = new Set();
+        let scanRunning = false;
+        let scanPollTimer = null;
 
         function formatDuration(seconds) {
             if (seconds == null) return '—';
@@ -164,7 +166,7 @@
                     <td>${min != null ? Math.round(min) + '€' : '—'}</td>
                     <td>${max != null ? Math.round(max) + '€' : '—'}</td>
                     <td class="actions-cell" onclick="event.stopPropagation()">
-                        <button class="btn-sm btn-accent" onclick="reuseSearch(${s.id})">Re-Scan</button>
+                        <button class="btn-sm btn-accent" onclick="reuseSearch(${s.id})" ${scanRunning ? 'disabled style="opacity:0.5"' : ''}>Re-Scan</button>
                         <button class="btn-sm btn-secondary" onclick="scheduleAsCrawler(${s.id})" ${crawlerSearchIds.has(s.id) ? 'disabled style="opacity:0.5"' : ''}>
                             ${crawlerSearchIds.has(s.id) ? '&#128197; Scheduled' : '&#128197; Schedule'}
                         </button>
@@ -330,8 +332,24 @@
             } catch (e) {}
         }
 
+        async function checkScanRunning() {
+            try {
+                const status = await API.getRunningSearch();
+                const wasRunning = scanRunning;
+                scanRunning = !!(status && status.running);
+                if (wasRunning !== scanRunning) renderSearches(allSearches);
+            } catch (e) { /* ignore */ }
+        }
+
+        function startScanPoll() {
+            if (scanPollTimer) clearInterval(scanPollTimer);
+            scanPollTimer = setInterval(checkScanRunning, 5000);
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             await loadSearchesSettings();
+            await checkScanRunning();
+            startScanPoll();
             // Load crawlers to know which searches are already scheduled
             try {
                 const crawlers = await API.getCrawlers();

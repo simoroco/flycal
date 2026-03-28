@@ -2,8 +2,23 @@
 
 let allTracks = [];
 const chartInstances = {};
+let scanRunning = false;
+let scanPollTimer = null;
 
-async function init() { await loadTracks(); }
+async function checkScanRunning() {
+    try {
+        const s = await API.getRunningSearch();
+        const was = scanRunning;
+        scanRunning = !!(s && s.running);
+        if (was !== scanRunning) renderTracks();
+    } catch (e) { /* ignore */ }
+}
+
+async function init() {
+    await checkScanRunning();
+    scanPollTimer = setInterval(checkScanRunning, 5000);
+    await loadTracks();
+}
 
 async function loadTracks() {
     try {
@@ -56,7 +71,7 @@ function renderTrackCard(track) {
             <span class="track-val"><span class="track-lbl">Now</span><span class="track-num">${cur}</span>${chg}</span>
             <div class="track-actions">
                 <button class="btn-sm btn-danger" onclick="untrackFlight(${track.id})">Untrack</button>
-                <a href="/" class="btn-sm btn-ghost">Scan</a>
+                <a href="/" class="btn-sm btn-ghost" ${scanRunning ? 'style="opacity:0.5;pointer-events:none"' : ''}>Scan</a>
             </div>
         </div>
         <div class="track-chart"><canvas id="chart-${track.id}"></canvas></div>
