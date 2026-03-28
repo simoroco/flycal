@@ -6,31 +6,35 @@
     <title>FlyCal — Activity</title>
     <link rel="stylesheet" href="/css/main.css">
     <style>
-        /* Safari-compatible full-height layout:
-           - html+body must both be 100% height (percentage chain)
-           - flex container needs overflow:hidden, NOT min-height:0, for Safari */
-        html { height: 100%; }
-        body {
-            height: 100%;
+        /* Safari full-height full-width layout */
+        html, body {
+            height: 100% !important;
+            min-height: 100% !important;
             margin: 0;
-            display: -webkit-flex;
-            display: flex;
-            -webkit-flex-direction: column;
-            flex-direction: column;
-            overflow: hidden;
+            padding: 0;
+            display: -webkit-flex !important;
+            display: flex !important;
+            -webkit-flex-direction: column !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
         }
         .header { -webkit-flex-shrink: 0; flex-shrink: 0; }
         .page-content.logs-page {
-            max-width: none; padding: 20px 24px;
-            -webkit-flex: 1 1 0px; flex: 1 1 0px;
-            display: -webkit-flex; display: flex;
-            -webkit-flex-direction: column; flex-direction: column;
-            overflow: hidden;
+            max-width: none !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 20px 24px !important;
+            -webkit-flex: 1 1 0px !important; flex: 1 1 0px !important;
+            display: -webkit-flex !important; display: flex !important;
+            -webkit-flex-direction: column !important; flex-direction: column !important;
+            overflow: hidden !important;
+            box-sizing: border-box;
         }
         .logs-header { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; flex-shrink: 0; }
         .logs-header .page-title { margin-bottom: 0; }
         .logs-full {
             -webkit-flex: 1 1 0px; flex: 1 1 0px;
+            min-height: 0; /* critical for Safari flex overflow */
             overflow-y: auto; -webkit-overflow-scrolling: touch;
             background: rgba(0,0,0,0.3); border-radius: var(--radius-sm);
             padding: 12px; font-family: 'Menlo','Monaco',monospace; font-size: 0.75rem;
