@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 
 from database import (
     TrackedFlight, PriceAlert, AlertHistory, PriceTracker, Airline,
+    log_activity,
 )
 
 logger = logging.getLogger("flycal.alerts")
@@ -107,9 +108,13 @@ def check_alerts(db):
 
         db.commit()
 
+        # Log triggered alerts
+        airline = db.query(Airline).filter(Airline.id == track.airline_id).first()
+        for alert in alerts_to_fire:
+            log_activity(db, "alert", "triggered", f"{_describe_alert(alert)} — {airline.name if airline else '?'} {track.origin_airport}→{track.destination_airport} now {latest_price}€")
+
         # Send email
         try:
-            airline = db.query(Airline).filter(Airline.id == track.airline_id).first()
             from email_service import send_alert_email
             send_alert_email(
                 pin=track,

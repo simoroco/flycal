@@ -5,7 +5,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from database import SessionLocal, Setting, Search, Flight, Airline, CrawlerLog
+from database import SessionLocal, Setting, Search, Flight, Airline, CrawlerLog, log_activity
 
 logger = logging.getLogger("flycal.email")
 
@@ -95,6 +95,11 @@ def send_test_email(settings=None):
         server.sendmail(user, [to_email], msg.as_string())
 
     logger.info(f"Test email sent to {to_email}")
+    _db = SessionLocal()
+    try:
+        log_activity(_db, "email", "sent", "Test email sent")
+    finally:
+        _db.close()
 
 
 def send_crawl_recap(search_id: int):
@@ -279,9 +284,19 @@ def send_crawl_recap(search_id: int):
             server.sendmail(user, [to_email], msg.as_string())
 
         logger.info(f"Crawl recap email sent to {to_email}")
+        _db = SessionLocal()
+        try:
+            log_activity(_db, "email", "sent", f"Recap for {search.origin_city}→{search.destination_city}")
+        finally:
+            _db.close()
 
     except Exception as e:
         logger.error(f"Failed to send email: {e}")
+        _db = SessionLocal()
+        try:
+            log_activity(_db, "email", "error", f"Recap failed: {str(e)[:200]}")
+        finally:
+            _db.close()
     finally:
         db.close()
 
@@ -358,7 +373,7 @@ def send_alert_email(pin, airline, alerts_triggered, current_price, previous_pri
             </ul>
 
             <hr style="border-color: rgba(255,255,255,0.1);">
-            <p><a href="http://{server_hostname}:4444/tracks.html" style="color: #6c63ff;">Voir mes vols suivis →</a></p>
+            <p><a href="http://{server_hostname}:4444/track.html" style="color: #6c63ff;">Voir mes vols suivis →</a></p>
         </div>
     </body>
     </html>
@@ -377,5 +392,15 @@ def send_alert_email(pin, airline, alerts_triggered, current_price, previous_pri
             server.sendmail(user, [to_email], msg.as_string())
 
         logger.info(f"Alert email sent for {airline_name} {origin}→{dest} {flight_date}")
+        _db = SessionLocal()
+        try:
+            log_activity(_db, "email", "sent", f"Alert: {airline_name} {origin}→{dest}")
+        finally:
+            _db.close()
     except Exception as e:
         logger.error(f"Failed to send alert email: {e}")
+        _db = SessionLocal()
+        try:
+            log_activity(_db, "email", "error", f"Alert email failed: {str(e)[:200]}")
+        finally:
+            _db.close()

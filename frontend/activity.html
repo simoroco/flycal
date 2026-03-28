@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlyCal — Logs</title>
+    <title>FlyCal — Activity</title>
     <link rel="stylesheet" href="/css/main.css">
     <style>
         html, body { height: 100%; margin: 0; }
@@ -19,11 +19,25 @@
             background: rgba(0,0,0,0.3); border-radius: var(--radius-sm);
             padding: 12px; font-family: 'Menlo','Monaco',monospace; font-size: 0.75rem;
         }
-        .log-line { padding: 3px 0; color: var(--text-muted); }
-        .log-line .status-success { color: var(--green); font-weight: 600; }
-        .log-line .status-error { color: var(--red); font-weight: 600; }
-        .log-line .status-running { color: var(--accent); font-weight: 600; }
-        .log-line .status-cancelled { color: var(--text-muted); font-weight: 600; }
+        .log-line { padding: 3px 0; color: var(--text-muted); display: flex; gap: 8px; align-items: baseline; }
+        .log-dt { color: rgba(255,255,255,0.35); flex-shrink: 0; }
+        .log-badge {
+            font-size: 0.65rem; font-weight: 700; padding: 1px 5px; border-radius: 3px;
+            text-transform: uppercase; flex-shrink: 0; min-width: 52px; text-align: center;
+        }
+        .log-badge.scan { background: rgba(108,99,255,0.2); color: var(--accent); }
+        .log-badge.track { background: rgba(59,130,246,0.2); color: #60a5fa; }
+        .log-badge.alert { background: rgba(245,158,11,0.2); color: #f59e0b; }
+        .log-badge.crawler { background: rgba(168,85,247,0.2); color: #a855f7; }
+        .log-badge.email { background: rgba(6,182,212,0.2); color: #06b6d4; }
+        .log-badge.system { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+        .log-action { font-weight: 600; flex-shrink: 0; }
+        .log-action.success, .log-action.created, .log-action.sent, .log-action.enabled { color: var(--green); }
+        .log-action.error, .log-action.deleted, .log-action.disabled { color: var(--red); }
+        .log-action.triggered { color: #f59e0b; }
+        .log-action.running, .log-action.started { color: var(--accent); }
+        .log-action.cancelled, .log-action.skipped, .log-action.updated { color: var(--text-muted); }
+        .log-msg { color: var(--text-muted); }
     </style>
 </head>
 <body>
@@ -35,11 +49,11 @@
             </a>
             <nav class="nav">
                 <a href="/" class="nav-link">Scan</a>
-                <a href="/tracks.html" class="nav-link">Tracks</a>
-                <a href="/automate.html" class="nav-link">Automate</a>
                 <a href="/history.html" class="nav-link">History</a>
+                <a href="/track.html" class="nav-link">Track</a>
+                <a href="/automate.html" class="nav-link">Automate</a>
                 <a href="/settings.html" class="nav-link">Settings</a>
-                <a href="/logs.html" class="nav-link active">Logs</a>
+                <a href="/activity.html" class="nav-link active">Activity</a>
             </nav>
         </div>
         <div class="header-right">
@@ -52,7 +66,7 @@
 
     <main class="page-content logs-page">
         <div class="logs-header">
-            <h1 class="page-title">Logs</h1>
+            <h1 class="page-title">Activity</h1>
         </div>
         <div class="logs-full" id="logsContainer"></div>
     </main>
@@ -92,10 +106,8 @@
             const container = document.getElementById('logsContainer');
             if (!logs.length) { container.innerHTML = '<div style="color:var(--text-muted);padding:40px;text-align:center">No logs yet</div>'; return; }
             container.innerHTML = logs.map(log => {
-                const dt = log.started_at ? fmtDT(log.started_at) : '';
-                const statusClass = `status-${log.status}`;
-                const errMsg = log.error_msg ? ` — ${log.error_msg}` : '';
-                return `<div class="log-line">${dt} <span class="${statusClass}">${log.status}</span> ${log.triggered_by}${errMsg}</div>`;
+                const dt = log.timestamp ? fmtDT(log.timestamp) : '';
+                return `<div class="log-line"><span class="log-dt">${dt}</span><span class="log-badge ${log.type}">${log.type}</span><span class="log-action ${log.action}">${log.action}</span><span class="log-msg">${log.message}</span></div>`;
             }).join('');
         } catch (e) { console.error('Logs error:', e); }
     }

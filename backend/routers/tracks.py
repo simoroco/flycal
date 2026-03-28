@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from database import (
     TrackedFlight, PriceAlert, AlertHistory, PriceTracker, Airline, get_db,
+    log_activity,
 )
 
 logger = logging.getLogger("flycal.routers.tracks")
@@ -189,6 +190,10 @@ def create_track(req: TrackRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(track)
 
+    airline = db.query(Airline).filter(Airline.id == track.airline_id).first()
+    airline_name = airline.name if airline else "?"
+    log_activity(db, "track", "created", f"{airline_name} {track.origin_airport}→{track.destination_airport} {track.flight_date} {track.departure_time}")
+
     return _track_to_dict(track, db)
 
 
@@ -197,6 +202,9 @@ def delete_track(track_id: int, db: Session = Depends(get_db)):
     track = db.query(TrackedFlight).filter(TrackedFlight.id == track_id).first()
     if not track:
         raise HTTPException(status_code=404, detail="Track not found")
+    airline = db.query(Airline).filter(Airline.id == track.airline_id).first()
+    airline_name = airline.name if airline else "?"
+    log_activity(db, "track", "deleted", f"{airline_name} {track.origin_airport}→{track.destination_airport} {track.flight_date}")
     db.delete(track)
     db.commit()
     return {"ok": True}
@@ -274,6 +282,10 @@ def create_alert(track_id: int, req: AlertRequest, db: Session = Depends(get_db)
     db.add(alert)
     db.commit()
     db.refresh(alert)
+    track = db.query(TrackedFlight).filter(TrackedFlight.id == track_id).first()
+    airline = db.query(Airline).filter(Airline.id == track.airline_id).first() if track else None
+    flight_info = f"{airline.name if airline else '?'} {track.origin_airport}→{track.destination_airport}" if track else f"track #{track_id}"
+    log_activity(db, "alert", "created", f"{req.alert_type} on {flight_info}")
     return _alert_to_dict(alert)
 
 
@@ -304,6 +316,7 @@ def delete_alert(track_id: int, alert_id: int, db: Session = Depends(get_db)):
     )
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
+    log_activity(db, "alert", "deleted", f"{alert.alert_type} alert #{alert_id} on track #{track_id}")
     db.delete(alert)
     db.commit()
     return {"ok": True}

@@ -9,6 +9,7 @@ from typing import Optional
 
 from database import (
     ScheduledCrawler, Search, CrawlerLog, Setting, get_db,
+    log_activity,
 )
 from scheduler import sync_scheduler_jobs, update_scheduler_state, get_next_run_times, ALLOWED_TIMES
 
@@ -77,6 +78,7 @@ def create_crawler(req: CrawlerCreateRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(crawler)
     sync_scheduler_jobs()
+    log_activity(db, "crawler", "created", f"{search.origin_city}→{search.destination_city} at {req.schedule_time}")
     return _crawler_to_dict(crawler, db)
 
 
@@ -97,6 +99,14 @@ def update_crawler(crawler_id: int, req: CrawlerUpdateRequest, db: Session = Dep
     db.commit()
     db.refresh(crawler)
     sync_scheduler_jobs()
+    search = db.query(Search).filter(Search.id == crawler.search_id).first()
+    route = f"{search.origin_city}→{search.destination_city}" if search else f"crawler #{crawler_id}"
+    changes = []
+    if req.schedule_time is not None:
+        changes.append(f"schedule → {req.schedule_time}")
+    if req.enabled is not None:
+        changes.append("enabled" if req.enabled else "disabled")
+    log_activity(db, "crawler", "updated", f"{route} {', '.join(changes)}")
     return _crawler_to_dict(crawler, db)
 
 
@@ -105,9 +115,13 @@ def delete_crawler(crawler_id: int, db: Session = Depends(get_db)):
     crawler = db.query(ScheduledCrawler).filter(ScheduledCrawler.id == crawler_id).first()
     if not crawler:
         raise HTTPException(status_code=404, detail="Crawler not found")
+    search = db.query(Search).filter(Search.id == crawler.search_id).first()
+    route = f"{search.origin_city}→{search.destination_city}" if search else f"crawler #{crawler_id}"
+    schedule = crawler.schedule_time
     db.delete(crawler)
     db.commit()
     sync_scheduler_jobs()
+    log_activity(db, "crawler", "deleted", f"{route} ({schedule})")
     return {"ok": True}
 
 
@@ -159,6 +173,7 @@ def toggle_global_crawler(db: Session = Depends(get_db)):
 
     db.commit()
     update_scheduler_state(new_val == "true")
+    log_activity(db, "system", "enabled" if new_val == "true" else "disabled", f"Global automation {'enabled' if new_val == 'true' else 'disabled'}")
 
     return {"enabled": new_val == "true"}
 
@@ -194,22 +209,43 @@ def get_automate_status(db: Session = Depends(get_db)):
 
 @router.get("/logs")
 def get_automate_logs(db: Session = Depends(get_db)):
-    logs = (
+    from database import ActivityLog
+
+    # Fetch CrawlerLog entries
+    crawler_logs = (
         db.query(CrawlerLog)
         .order_by(CrawlerLog.started_at.desc())
-        .limit(100)
+        .limit(200)
         .all()
     )
-    return [
-        {
-            "id": log.id,
-            "search_id": log.search_id,
-            "crawler_id": getattr(log, 'crawler_id', None),
-            "triggered_by": log.triggered_by,
-            "status": log.status,
-            "error_msg": log.error_msg,
-            "started_at": log.started_at.isoformat() + "Z" if log.started_at else None,
-            "ended_at": log.ended_at.isoformat() + "Z" if log.ended_at else None,
-        }
-        for log in logs
-    ]
+
+    # Fetch ActivityLog entries
+    activity_logs = (
+        db.query(ActivityLog)
+        .order_by(ActivityLog.created_at.desc())
+        .limit(200)
+        .all()
+    )
+
+    # Merge into unified format
+    merged = []
+    for log in crawler_logs:
+        err = f" — {log.error_msg}" if log.error_msg else ""
+        merged.append({
+            "type": "scan",
+            "action": log.status,
+            "message": f"{log.triggered_by}{err}",
+            "timestamp": log.started_at.isoformat() + "Z" if log.started_at else None,
+        })
+
+    for log in activity_logs:
+        merged.append({
+            "type": log.category,
+            "action": log.action,
+            "message": log.message,
+            "timestamp": log.created_at.isoformat() + "Z" if log.created_at else None,
+        })
+
+    # Sort by timestamp descending
+    merged.sort(key=lambda x: x["timestamp"] or "", reverse=True)
+    return merged[:200]

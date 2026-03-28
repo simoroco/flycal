@@ -175,6 +175,20 @@ class AlertHistory(Base):
     alert = relationship("PriceAlert", back_populates="history")
 
 
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    category = Column(Text, nullable=False)   # "track", "alert", "crawler", "email", "system"
+    action = Column(Text, nullable=False)      # "created", "deleted", "enabled", "disabled", "sent", "triggered", "error"
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+def log_activity(db, category: str, action: str, message: str):
+    db.add(ActivityLog(category=category, action=action, message=message))
+    db.commit()
+
+
 def get_db():
     db = SessionLocal()
     try:

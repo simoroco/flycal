@@ -22,6 +22,8 @@ async def _scheduled_crawl_slot(time_slot: str):
         enabled_setting = db.query(Setting).filter(Setting.key == "crawler_enabled").first()
         if not enabled_setting or enabled_setting.value != "true":
             logger.info(f"Global crawler disabled, skipping slot {time_slot}")
+            from database import log_activity
+            log_activity(db, "system", "skipped", f"Slot {time_slot} skipped — global disabled")
             return
 
         crawlers = (
@@ -35,6 +37,8 @@ async def _scheduled_crawl_slot(time_slot: str):
             return
 
         logger.info(f"Running {len(crawlers)} crawler(s) for slot {time_slot}")
+        from database import log_activity
+        log_activity(db, "system", "started", f"Slot {time_slot} — {len(crawlers)} crawler(s)")
 
         for crawler in crawlers:
             source_search = db.query(Search).filter(Search.id == crawler.search_id).first()
@@ -68,6 +72,8 @@ async def _scheduled_crawl_slot(time_slot: str):
 
             except Exception as e:
                 logger.error(f"Crawler {crawler.id} failed: {e}")
+                from database import log_activity
+                log_activity(db, "crawler", "error", f"Crawler #{crawler.id} failed: {str(e)[:200]}")
 
     finally:
         db.close()
