@@ -4,168 +4,153 @@ from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-import pytz
 
 logger = logging.getLogger("flycal.scheduler")
 
-_scheduler: AsyncIOScheduler = None
-JOB_ID = "flycal_crawler"
-TZ = pytz.timezone("Europe/Paris")
+scheduler = AsyncIOScheduler(timezone="Europe/Paris")
+ALLOWED_TIMES = ["04:00", "07:00", "14:00", "18:00", "23:00"]
 
 
-async def _scheduled_crawl():
-    from database import SessionLocal, Search, Setting
+async def _scheduled_crawl_slot(time_slot: str):
+    """Run all enabled crawlers for this time slot, sequentially."""
+    from database import SessionLocal, Setting, Search, ScheduledCrawler, CrawlerLog
+    import json
+
     db = SessionLocal()
     try:
+        # Check global enable
         enabled_setting = db.query(Setting).filter(Setting.key == "crawler_enabled").first()
         if not enabled_setting or enabled_setting.value != "true":
-            logger.info("Scheduler triggered but crawler is disabled, skipping.")
+            logger.info(f"Global crawler disabled, skipping slot {time_slot}")
             return
 
-        last_search = db.query(Search).filter(Search.is_last == True).first()
-        if not last_search:
-            logger.info("Scheduler triggered but no last search found, skipping.")
+        crawlers = (
+            db.query(ScheduledCrawler)
+            .filter(ScheduledCrawler.schedule_time == time_slot, ScheduledCrawler.enabled == True)
+            .all()
+        )
+
+        if not crawlers:
+            logger.info(f"No enabled crawlers for slot {time_slot}")
             return
 
-        # Atomic is_last flag swap — prevents race with manual search
-        from sqlalchemy import text
-        db.execute(text("BEGIN IMMEDIATE"))
-        try:
-            # Snapshot search params before clearing is_last
-            origin = last_search.origin_city
-            dest = last_search.destination_city
-            df = last_search.date_from
-            dt = last_search.date_to
-            tt = last_search.trip_type
-            al = last_search.airlines
+        logger.info(f"Running {len(crawlers)} crawler(s) for slot {time_slot}")
 
-            db.query(Search).filter(Search.is_last == True).update({"is_last": False})
-            new_search = Search(
-                origin_city=origin,
-                destination_city=dest,
-                date_from=df,
-                date_to=dt,
-                trip_type=tt,
-                airlines=al,
-                is_last=True,
-                created_at=datetime.utcnow(),
-            )
-            db.add(new_search)
-            db.commit()
-        except Exception:
-            db.rollback()
-            raise
-        db.refresh(new_search)
-        search_id = new_search.id
+        for crawler in crawlers:
+            source_search = db.query(Search).filter(Search.id == crawler.search_id).first()
+            if not source_search:
+                logger.warning(f"Crawler {crawler.id}: source search {crawler.search_id} not found, skipping")
+                continue
+
+            try:
+                # Parse airlines
+                airlines_list = json.loads(source_search.airlines) if source_search.airlines else []
+
+                # Create new search with same parameters
+                new_search = Search(
+                    origin_city=source_search.origin_city,
+                    destination_city=source_search.destination_city,
+                    date_from=source_search.date_from,
+                    date_to=source_search.date_to,
+                    trip_type=source_search.trip_type,
+                    airlines=source_search.airlines,
+                    is_last=False,
+                )
+                db.add(new_search)
+                db.commit()
+                db.refresh(new_search)
+
+                logger.info(f"Crawler {crawler.id}: created search #{new_search.id} for {source_search.origin_city}->{source_search.destination_city}")
+
+                # Run scraping
+                from routers.flights import _run_scraping
+                await _run_scraping(new_search.id, triggered_by="auto")
+
+            except Exception as e:
+                logger.error(f"Crawler {crawler.id} failed: {e}")
+
     finally:
         db.close()
 
-    logger.info(f"Scheduler running crawl for search {search_id} (auto)")
+
+def sync_scheduler_jobs():
+    """Sync APScheduler jobs with database crawlers."""
+    from database import SessionLocal, Setting, ScheduledCrawler
+
+    db = SessionLocal()
     try:
-        from routers.flights import _run_scraping
-        await _run_scraping(search_id, triggered_by="auto")
-    except Exception as e:
-        logger.error(f"Scheduled crawl failed for search {search_id}: {e}")
-        # Mark the failed search's log entry
-        db2 = SessionLocal()
-        try:
-            from database import CrawlerLog
-            log = db2.query(CrawlerLog).filter(
-                CrawlerLog.search_id == search_id,
-                CrawlerLog.status == "running"
-            ).first()
-            if log:
-                log.status = "error"
-                log.error_msg = f"Scheduler error: {str(e)[:400]}"
-                log.ended_at = datetime.utcnow()
-                db2.commit()
-        finally:
-            db2.close()
+        # Check global enable
+        enabled_setting = db.query(Setting).filter(Setting.key == "crawler_enabled").first()
+        globally_enabled = enabled_setting and enabled_setting.value == "true"
 
+        if not globally_enabled:
+            # Remove all crawler jobs
+            for job in scheduler.get_jobs():
+                if job.id.startswith("flycal_crawler_"):
+                    scheduler.remove_job(job.id)
+            logger.info("Global crawler disabled, removed all jobs")
+            return
 
-def _get_crawler_time() -> str:
-    """Read crawler_time from database, default '07:00'."""
-    try:
-        from database import SessionLocal, Setting
-        db = SessionLocal()
-        try:
-            row = db.query(Setting).filter(Setting.key == "crawler_time").first()
-            return row.value if row and row.value else "07:00"
-        finally:
-            db.close()
-    except Exception:
-        return "07:00"
+        # Get active time slots
+        active_slots = set()
+        crawlers = db.query(ScheduledCrawler).filter(ScheduledCrawler.enabled == True).all()
+        for c in crawlers:
+            active_slots.add(c.schedule_time)
 
+        # Current job IDs
+        current_jobs = {job.id for job in scheduler.get_jobs() if job.id.startswith("flycal_crawler_")}
 
-def _build_trigger(time_str: str = None):
-    """Build CronTrigger from a single time string like '07:00'."""
-    if not time_str:
-        time_str = _get_crawler_time()
-    try:
-        h, m = time_str.strip().split(":")
-        return CronTrigger(hour=int(h), minute=int(m), timezone=TZ)
-    except (ValueError, IndexError):
-        return CronTrigger(hour=7, minute=0, timezone=TZ)
+        # Add missing jobs
+        for slot in active_slots:
+            job_id = f"flycal_crawler_{slot}"
+            if job_id not in current_jobs:
+                hour, minute = slot.split(":")
+                scheduler.add_job(
+                    _scheduled_crawl_slot,
+                    trigger=CronTrigger(hour=int(hour), minute=int(minute)),
+                    id=job_id,
+                    args=[slot],
+                    misfire_grace_time=3600,
+                    replace_existing=True,
+                )
+                logger.info(f"Added scheduler job for slot {slot}")
 
+        # Remove jobs for slots with no enabled crawlers
+        for job_id in current_jobs:
+            slot = job_id.replace("flycal_crawler_", "")
+            if slot not in active_slots:
+                scheduler.remove_job(job_id)
+                logger.info(f"Removed scheduler job for slot {slot}")
 
-def init_scheduler():
-    global _scheduler
-    _scheduler = AsyncIOScheduler(timezone=TZ)
-
-    time_str = _get_crawler_time()
-    _scheduler.add_job(
-        _scheduled_crawl,
-        _build_trigger(time_str),
-        id=JOB_ID,
-        replace_existing=True,
-        misfire_grace_time=3600,
-    )
-
-    _scheduler.start()
-    logger.info(f"APScheduler started with daily schedule: {time_str} Europe/Paris")
-
-
-def get_next_run_time() -> str:
-    global _scheduler
-    if not _scheduler:
-        return None
-    job = _scheduler.get_job(JOB_ID)
-    if job and job.next_run_time:
-        return job.next_run_time.isoformat()
-    return None
+    finally:
+        db.close()
 
 
 def update_scheduler_state(enabled: bool):
-    global _scheduler
-    if not _scheduler:
-        return
-    if enabled:
-        time_str = _get_crawler_time()
-        _scheduler.add_job(
-            _scheduled_crawl,
-            _build_trigger(time_str),
-            id=JOB_ID,
-            replace_existing=True,
-            misfire_grace_time=3600,
-        )
-        logger.info(f"Scheduler job enabled ({time_str})")
+    """Toggle global scheduler state."""
+    if not enabled:
+        for job in scheduler.get_jobs():
+            if job.id.startswith("flycal_crawler_"):
+                scheduler.remove_job(job.id)
+        logger.info("Global crawler OFF — all jobs removed")
     else:
-        if _scheduler.get_job(JOB_ID):
-            _scheduler.remove_job(JOB_ID)
-        logger.info("Scheduler job removed (disabled)")
-    logger.info(f"Scheduler state updated: enabled={enabled}")
+        sync_scheduler_jobs()
+        logger.info("Global crawler ON — jobs synced")
 
 
-def update_schedule_time(time_str: str):
-    """Update the scheduler with a new time (called from API)."""
-    global _scheduler
-    if not _scheduler:
-        return
-    _scheduler.add_job(
-        _scheduled_crawl,
-        _build_trigger(time_str),
-        id=JOB_ID,
-        replace_existing=True,
-        misfire_grace_time=3600,
-    )
-    logger.info(f"Scheduler time updated to: {time_str}")
+def get_next_run_times():
+    """Get next run time for each active slot."""
+    result = {}
+    for job in scheduler.get_jobs():
+        if job.id.startswith("flycal_crawler_"):
+            slot = job.id.replace("flycal_crawler_", "")
+            next_run = job.next_run_time
+            if next_run:
+                result[slot] = next_run.isoformat()
+    return result
+
+
+def init_scheduler():
+    scheduler.start()
+    sync_scheduler_jobs()
+    logger.info("Scheduler initialized")

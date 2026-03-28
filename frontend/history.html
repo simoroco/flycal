@@ -16,8 +16,9 @@
             </a>
             <nav class="nav">
                 <a href="/" class="nav-link">Scan</a>
+                <a href="/tracks.html" class="nav-link">Tracks</a>
+                <a href="/automate.html" class="nav-link">Automate</a>
                 <a href="/history.html" class="nav-link active">History</a>
-                <a href="/pins.html" class="nav-link">Pins</a>
                 <a href="/settings.html" class="nav-link">Settings</a>
             </nav>
         </div>
@@ -73,6 +74,7 @@
         let searchesSettings = null;
         let expandedSearchId = null;
         let selectedSearchIds = new Set();
+        let crawlerSearchIds = new Set();
 
         function formatDuration(seconds) {
             if (seconds == null) return '—';
@@ -160,6 +162,9 @@
                     <td>${max != null ? Math.round(max) + '€' : '—'}</td>
                     <td class="actions-cell" onclick="event.stopPropagation()">
                         <button class="btn-sm btn-accent" onclick="reuseSearch(${s.id})">Reuse</button>
+                        <button class="btn-sm btn-secondary" onclick="scheduleAsCrawler(${s.id})" ${crawlerSearchIds.has(s.id) ? 'disabled style="opacity:0.5"' : ''}>
+                            ${crawlerSearchIds.has(s.id) ? '&#9200; Scheduled' : '&#9200; Schedule'}
+                        </button>
                     </td>
                 </tr>`;
 
@@ -288,23 +293,26 @@
             window.location.href = '/?' + params.toString();
         }
 
-        async function toggleCrawlerFromHeader() {
+        async function scheduleAsCrawler(searchId) {
             try {
-                const result = await API.toggleCrawler();
-                await loadCrawlerStatus();
-                const status = await API.get('/api/crawler/status');
-                const target = status.target_search;
-                let msg = result.enabled ? 'Crawler enabled' : 'Crawler disabled';
-                if (result.enabled && target) {
-                    msg += ` for ${(target.origin_city||'').toUpperCase()} → ${(target.destination_city||'').toUpperCase()}`;
-                    if (status.next_run) {
-                        const next = fmtDT(status.next_run);
-                        msg += ` — Next: ${next}`;
-                    }
-                }
-                if (result.enabled) Toast.success(msg, 6000);
-                else Toast.info(msg);
-            } catch (e) { Toast.error('Failed to toggle crawler.'); }
+                await API.createCrawler({ search_id: searchId, schedule_time: '04:00' });
+                crawlerSearchIds.add(searchId);
+                renderSearches(allSearches);
+                Toast.success('Search scheduled as crawler at 04:00');
+            } catch (e) {
+                Toast.error('Failed to schedule: ' + e.message);
+            }
+        }
+
+        async function toggleCrawlerFromHeader() {
+            const dot = document.getElementById('crawlerDot');
+            const label = document.getElementById('crawlerLabel');
+            try {
+                const res = await API.toggleGlobalCrawler();
+                if (dot) dot.style.background = res.enabled ? 'var(--green)' : 'var(--red)';
+                if (label) label.textContent = res.enabled ? 'Crawler ON' : 'Crawler OFF';
+                Toast.success(res.enabled ? 'Crawler enabled' : 'Crawler disabled');
+            } catch (e) { Toast.error('Failed: ' + e.message); }
         }
 
         async function loadCrawlerStatus() {
@@ -319,6 +327,11 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             await loadSearchesSettings();
+            // Load crawlers to know which searches are already scheduled
+            try {
+                const crawlers = await API.getCrawlers();
+                crawlerSearchIds = new Set(crawlers.map(c => c.search_id));
+            } catch (e) { console.error('Failed to load crawlers:', e); }
             // Check for deep link ?search_id=123
             const params = new URLSearchParams(window.location.search);
             const deepLinkId = params.get('search_id');

@@ -3,23 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlyCal — Pins</title>
+    <title>FlyCal — Tracks</title>
     <link rel="stylesheet" href="/css/main.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <style>
         /* Full-width page override */
-        .page-content.pins-page { max-width: none; padding: 20px 24px; }
+        .page-content.tracks-page { max-width: none; padding: 20px 24px; }
 
-        .pins-empty { color: var(--text-muted); text-align: center; padding: 60px 20px; font-size: 0.9rem; }
+        .tracks-empty { color: var(--text-muted); text-align: center; padding: 60px 20px; font-size: 0.9rem; }
 
         /* Grid layout — exactly 2 columns */
-        .pins-grid {
+        .tracks-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 14px;
         }
 
-        .pin-card {
+        .track-card {
             background: var(--glass-bg);
             border: 1px solid var(--glass-border);
             border-radius: var(--radius);
@@ -29,40 +29,40 @@
             transition: border-color var(--transition);
             overflow: hidden;
         }
-        .pin-card:hover { border-color: rgba(255,255,255,0.15); }
+        .track-card:hover { border-color: rgba(255,255,255,0.15); }
 
         /* Top band — wrap to 2 rows if needed */
-        .pin-top-band {
+        .track-top-band {
             display: flex;
             align-items: center;
             gap: 6px;
             flex-wrap: wrap;
             font-size: 0.78rem;
         }
-        .pin-logo { width: 22px; height: 22px; border-radius: 4px; flex-shrink: 0; }
-        .pin-airline { font-weight: 700; color: var(--text); white-space: nowrap; }
-        .pin-dir {
+        .track-logo { width: 22px; height: 22px; border-radius: 4px; flex-shrink: 0; }
+        .track-airline { font-weight: 700; color: var(--text); white-space: nowrap; }
+        .track-dir {
             font-size: 0.58rem; font-weight: 700; padding: 1px 5px; border-radius: 3px;
             text-transform: uppercase; flex-shrink: 0;
         }
-        .pin-dir.outbound { background: rgba(108,99,255,0.2); color: var(--accent); }
-        .pin-dir.return { background: rgba(0,200,100,0.2); color: var(--green); }
-        .pin-route { color: var(--text-muted); white-space: nowrap; }
-        .pin-sep { color: rgba(255,255,255,0.1); }
-        .pin-val { white-space: nowrap; }
-        .pin-lbl { color: var(--text-muted); font-size: 0.6rem; margin-right: 2px; }
-        .pin-num { font-weight: 600; color: var(--text); }
-        .pin-change { font-size: 0.68rem; margin-left: 1px; }
-        .pin-change.down { color: var(--green); }
-        .pin-change.up { color: var(--red); }
-        .pin-actions { display: flex; gap: 5px; margin-left: auto; flex-shrink: 0; }
+        .track-dir.outbound { background: rgba(108,99,255,0.2); color: var(--accent); }
+        .track-dir.return { background: rgba(0,200,100,0.2); color: var(--green); }
+        .track-route { color: var(--text-muted); white-space: nowrap; }
+        .track-sep { color: rgba(255,255,255,0.1); }
+        .track-val { white-space: nowrap; }
+        .track-lbl { color: var(--text-muted); font-size: 0.6rem; margin-right: 2px; }
+        .track-num { font-weight: 600; color: var(--text); }
+        .track-change { font-size: 0.68rem; margin-left: 1px; }
+        .track-change.down { color: var(--green); }
+        .track-change.up { color: var(--red); }
+        .track-actions { display: flex; gap: 5px; margin-left: auto; flex-shrink: 0; }
 
         /* Chart */
-        .pin-chart { margin-top: 8px; position: relative; height: 110px; }
-        .pin-chart-empty { color: var(--text-muted); text-align: center; padding: 16px; font-size: 0.72rem; }
+        .track-chart { margin-top: 8px; position: relative; height: 110px; }
+        .track-chart-empty { color: var(--text-muted); text-align: center; padding: 16px; font-size: 0.72rem; }
 
         /* Alerts — always visible inline */
-        .pin-alerts { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+        .track-alerts { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 
         .alert-row {
             display: flex; align-items: center; gap: 5px;
@@ -109,7 +109,7 @@
         .btn-danger:hover { background: rgba(220,50,50,0.25); }
 
         @media (max-width: 900px) {
-            .pins-grid { grid-template-columns: 1fr; }
+            .tracks-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -122,28 +122,41 @@
             </a>
             <nav class="nav">
                 <a href="/" class="nav-link">Scan</a>
+                <a href="/tracks.html" class="nav-link active">Tracks</a>
+                <a href="/automate.html" class="nav-link">Automate</a>
                 <a href="/history.html" class="nav-link">History</a>
-                <a href="/pins.html" class="nav-link active">Pins</a>
                 <a href="/settings.html" class="nav-link">Settings</a>
             </nav>
         </div>
         <div class="header-right">
-            <div class="crawler-badge" id="crawlerBadge">
+            <div class="crawler-badge" id="crawlerBadge" onclick="toggleCrawlerFromHeader()">
                 <span class="crawler-dot" id="crawlerDot"></span>
                 <span id="crawlerLabel">Crawler</span>
             </div>
         </div>
     </header>
 
-    <main class="page-content pins-page">
-        <h1 class="page-title">Pinned Flights</h1>
-        <div id="pinsContent">
-            <div class="pins-empty">Loading...</div>
+    <main class="page-content tracks-page">
+        <h1 class="page-title">Tracked Flights</h1>
+        <div id="tracksContent">
+            <div class="tracks-empty">Loading...</div>
         </div>
     </main>
 
     <script src="/js/api.js"></script>
     <script src="/js/toast.js"></script>
-    <script src="/js/pins.js"></script>
+    <script src="/js/tracks.js"></script>
+    <script>
+    async function toggleCrawlerFromHeader() {
+        const dot = document.getElementById('crawlerDot');
+        const label = document.getElementById('crawlerLabel');
+        try {
+            const res = await API.toggleGlobalCrawler();
+            if (dot) dot.style.background = res.enabled ? 'var(--green)' : 'var(--red)';
+            if (label) label.textContent = res.enabled ? 'Crawler ON' : 'Crawler OFF';
+            Toast.success(res.enabled ? 'Crawler enabled' : 'Crawler disabled');
+        } catch (e) { Toast.error('Failed: ' + e.message); }
+    }
+    </script>
 </body>
 </html>

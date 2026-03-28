@@ -16,8 +16,6 @@ async function initSettings() {
     await Promise.all([
         loadAllSettings(),
         loadAirlinesList(),
-        loadCrawlerInfo(),
-        loadLogs(),
     ]);
     bindAutoSave();
 }
@@ -27,11 +25,6 @@ function bindAutoSave() {
     // Ideal price
     document.getElementById('idealPrice').addEventListener('change', () => {
         debounce('idealPrice', saveIdealPrice);
-    });
-
-    // Crawler time
-    document.getElementById('crawlerTime').addEventListener('change', () => {
-        debounce('crawlerTime', saveCrawlerSchedule);
     });
 
     // Email fields — auto-save on blur or change
@@ -82,9 +75,6 @@ async function loadAllSettings() {
             emailToggle.classList.remove('active');
         }
 
-        // Crawler schedule time (single daily)
-        document.getElementById('crawlerTime').value = settingsData.crawler_time || '07:00';
-
         settingsTimeSlots = settingsData.time_slots || [];
         renderTimeSlots();
     } catch (e) {
@@ -103,18 +93,6 @@ async function saveIdealPrice() {
     }
 }
 
-/* ── Crawler schedule ── */
-async function saveCrawlerSchedule() {
-    const time = document.getElementById('crawlerTime').value || '07:00';
-    try {
-        await API.updateSettings({ crawler_time: time });
-        await API.post('/api/crawler/update-schedule', { time });
-        await loadCrawlerInfo();
-        Toast.success('Schedule saved: daily at ' + time);
-    } catch (e) {
-        Toast.error('Error: ' + e.message);
-    }
-}
 
 /* ── Airlines ── */
 async function loadAirlinesList() {
@@ -291,131 +269,6 @@ async function saveTimeSlots() {
         Toast.success('Time slots saved.');
     } catch (e) {
         Toast.error('Error: ' + e.message);
-    }
-}
-
-/* ── Crawler ── */
-async function loadCrawlerInfo() {
-    try {
-        const status = await API.getCrawlerStatus();
-
-        const dot = document.getElementById('crawlerDot');
-        const label = document.getElementById('crawlerLabel');
-        const toggle = document.getElementById('crawlerToggle');
-        const statusText = document.getElementById('crawlerStatus');
-        const lastRun = document.getElementById('lastRun');
-        const nextRun = document.getElementById('nextRun');
-        const targetInfo = document.getElementById('crawlerTargetInfo');
-
-        const crawlerTime = status.crawler_time || '07:00';
-        dot.className = 'crawler-dot ' + (status.enabled ? 'active' : 'inactive');
-        label.textContent = status.enabled ? 'Crawler ON' : 'Crawler OFF';
-
-        if (status.enabled) {
-            toggle.classList.add('active');
-            statusText.textContent = `Active — daily at ${crawlerTime}`;
-        } else {
-            toggle.classList.remove('active');
-            statusText.textContent = 'Inactive';
-        }
-
-        if (targetInfo) {
-            if (status.enabled && status.target_search) {
-                const ts = status.target_search;
-                const airlines = (ts.airlines || []).join(', ');
-                const since = status.crawler_started_at
-                    ? fmtDT(status.crawler_started_at, false)
-                    : '—';
-                targetInfo.innerHTML = `<p style="color:var(--accent);font-size:0.8rem">
-                    <strong>${(ts.origin_city || '').toUpperCase()} → ${(ts.destination_city || '').toUpperCase()}</strong>
-                    &nbsp;|&nbsp; ${ts.date_from} → ${ts.date_to}
-                    &nbsp;|&nbsp; ${airlines}
-                    &nbsp;|&nbsp; since ${since}
-                </p>`;
-            } else {
-                targetInfo.innerHTML = '';
-            }
-        }
-
-        if (status.last_run && status.last_run.started_at) {
-            const d = new Date(status.last_run.started_at);
-            lastRun.textContent = fmtDT(status.last_run.started_at) + ' — ' + (status.last_run.status || '');
-        } else {
-            lastRun.textContent = '—';
-        }
-
-        nextRun.textContent = status.next_run
-            ? fmtDT(status.next_run)
-            : '—';
-    } catch (e) {
-        console.error('Failed to load crawler info:', e);
-    }
-}
-
-async function toggleCrawler() {
-    try {
-        const result = await API.toggleCrawler();
-        await loadCrawlerInfo();
-        const status = await API.getCrawlerStatus();
-        const target = status.target_search;
-        const crawlerTime = status.crawler_time || '07:00';
-
-        if (result.enabled && target) {
-            const airlines = (target.airlines || []).join(', ');
-            const nextStr = status.next_run
-                ? fmtDT(status.next_run)
-                : crawlerTime;
-            const msg = `Crawler enabled — daily at ${crawlerTime}\n`
-                + `${(target.origin_city||'').toUpperCase()} → ${(target.destination_city||'').toUpperCase()}\n`
-                + `${target.date_from} → ${target.date_to}\n`
-                + `Airlines: ${airlines}\n`
-                + `Next run: ${nextStr}`;
-            Toast.success(msg, 8000);
-        } else if (result.enabled) {
-            Toast.success('Crawler enabled — daily at ' + crawlerTime);
-        } else {
-            Toast.info('Crawler disabled');
-        }
-    } catch (e) {
-        Toast.error('Error: ' + e.message);
-    }
-}
-
-async function runCrawlerNow() {
-    try {
-        await API.runCrawler();
-        Toast.success('Crawler started!');
-        setTimeout(loadCrawlerInfo, 2000);
-        setTimeout(loadLogs, 5000);
-    } catch (e) {
-        Toast.error('Error: ' + e.message);
-    }
-}
-
-async function loadLogs() {
-    try {
-        const logs = await API.getLogs();
-        const container = document.getElementById('logsContainer');
-
-        if (!logs.length) {
-            container.innerHTML = '<p class="text-muted">No logs</p>';
-            return;
-        }
-
-        container.innerHTML = logs.map(log => {
-            const time = log.started_at ? fmtDT(log.started_at) : '—';
-            const statusColor = log.status === 'success' ? 'var(--green)' :
-                                log.status === 'error' ? 'var(--red)' :
-                                log.status === 'running' ? 'var(--orange)' : 'var(--text-muted)';
-            const errorPart = log.error_msg ? ` — ${log.error_msg}` : '';
-            return `<div class="log-entry">
-                <span class="log-time">${time}</span>
-                <span class="log-status" style="color:${statusColor}">${log.status}</span>
-                <span class="log-msg">${log.triggered_by}${errorPart}</span>
-            </div>`;
-        }).join('');
-    } catch (e) {
-        console.error('Failed to load logs:', e);
     }
 }
 

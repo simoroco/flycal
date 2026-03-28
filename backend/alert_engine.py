@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timedelta
 
 from database import (
-    PinnedFlight, PriceAlert, AlertHistory, PriceTracker, Airline,
+    TrackedFlight, PriceAlert, AlertHistory, PriceTracker, Airline,
 )
 
 logger = logging.getLogger("flycal.alerts")
@@ -20,14 +20,14 @@ logger = logging.getLogger("flycal.alerts")
 def check_alerts(db):
     """Check all enabled alerts against latest prices. Called after each scan."""
 
-    pins = db.query(PinnedFlight).all()
-    if not pins:
+    tracks = db.query(TrackedFlight).all()
+    if not tracks:
         return
 
-    for pin in pins:
+    for track in tracks:
         alerts = (
             db.query(PriceAlert)
-            .filter(PriceAlert.pinned_flight_id == pin.id, PriceAlert.enabled == True)
+            .filter(PriceAlert.pinned_flight_id == track.id, PriceAlert.enabled == True)
             .all()
         )
         if not alerts:
@@ -37,12 +37,12 @@ def check_alerts(db):
         prices = (
             db.query(PriceTracker)
             .filter(
-                PriceTracker.airline_id == pin.airline_id,
-                PriceTracker.direction == pin.direction,
-                PriceTracker.flight_date == pin.flight_date,
-                PriceTracker.departure_time == pin.departure_time,
-                PriceTracker.origin_airport == pin.origin_airport,
-                PriceTracker.destination_airport == pin.destination_airport,
+                PriceTracker.airline_id == track.airline_id,
+                PriceTracker.direction == track.direction,
+                PriceTracker.flight_date == track.flight_date,
+                PriceTracker.departure_time == track.departure_time,
+                PriceTracker.origin_airport == track.origin_airport,
+                PriceTracker.destination_airport == track.destination_airport,
             )
             .order_by(PriceTracker.recorded_at.desc())
             .limit(10)
@@ -109,17 +109,17 @@ def check_alerts(db):
 
         # Send email
         try:
-            airline = db.query(Airline).filter(Airline.id == pin.airline_id).first()
+            airline = db.query(Airline).filter(Airline.id == track.airline_id).first()
             from email_service import send_alert_email
             send_alert_email(
-                pin=pin,
+                pin=track,
                 airline=airline,
                 alerts_triggered=alerts_to_fire,
                 current_price=latest_price,
                 previous_price=previous_price,
             )
         except Exception as e:
-            logger.error(f"Alert email failed for pin {pin.id}: {e}")
+            logger.error(f"Alert email failed for track {track.id}: {e}")
 
 
 def _evaluate_alert(alert, latest, previous, oldest, prices):

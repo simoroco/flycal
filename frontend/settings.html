@@ -15,13 +15,14 @@
             </a>
             <nav class="nav">
                 <a href="/" class="nav-link">Scan</a>
+                <a href="/tracks.html" class="nav-link">Tracks</a>
+                <a href="/automate.html" class="nav-link">Automate</a>
                 <a href="/history.html" class="nav-link">History</a>
-                <a href="/pins.html" class="nav-link">Pins</a>
                 <a href="/settings.html" class="nav-link active">Settings</a>
             </nav>
         </div>
         <div class="header-right">
-            <div class="crawler-badge" id="crawlerBadge" onclick="toggleCrawler()">
+            <div class="crawler-badge" id="crawlerBadge" onclick="toggleCrawlerFromHeader()">
                 <span class="crawler-dot" id="crawlerDot"></span>
                 <span id="crawlerLabel">Crawler</span>
             </div>
@@ -31,36 +32,6 @@
     <main class="page-content">
         <h1 class="page-title">Settings</h1>
         
-        <section class="settings-section glass-card">
-            <h2>Recent Logs</h2>
-            <div class="logs-container" id="logsContainer">
-                <p class="text-muted">Loading...</p>
-            </div>
-        </section>
-
-        <section class="settings-section glass-card">
-            <h2>Stay Updated</h2>
-
-            <div style="margin-top:12px;padding:10px;background:rgba(255,255,255,0.02);border-radius:var(--radius-sm);border:1px solid var(--glass-border)">
-                <div class="form-row" style="align-items:center;gap:12px">
-                    <label>Enable automatic Crawler daily scan using the last search parameters :</label>
-                    <div class="toggle-switch" id="crawlerToggle" onclick="toggleCrawler()">
-                        <div class="toggle-slider"></div>
-                    </div>
-                    <span id="crawlerStatus" class="status-text">Inactive</span>
-                    <span style="font-size:0.78rem;font-weight:600;color:var(--text-muted)">Daily scan at</span>
-                    <input type="time" id="crawlerTime" value="07:00" class="compact-input" style="width:110px" onclick="if(this.showPicker)this.showPicker()">
-                </div>
-            </div>
-
-            <div id="crawlerTargetInfo" class="crawler-info" style="margin-top:8px"></div>
-            <div class="crawler-info">
-                <p>Last run: <span id="lastRun">—</span></p>
-                <p>Next run: <span id="nextRun">—</span></p>
-            </div>
-            <button class="btn-sm btn-accent" onclick="runCrawlerNow()">Run now</button>
-        </section>
-
         <section class="settings-section glass-card">
             <h2>Reference Price</h2>
             <div class="form-row">
@@ -121,6 +92,7 @@
                     </div>
                 </div>
             </div>
+            <p style="margin-bottom:10px">An email notification will be sent automatically with attached trackers.</p>
             <div style="margin-top:10px;display:flex;gap:6px">
                 <button class="btn-sm btn-accent" onclick="testSmtp()">Test SMTP</button>
             </div>
@@ -147,5 +119,17 @@
     <script src="/js/api.js"></script>
     <script src="/js/toast.js"></script>
     <script src="/js/settings.js"></script>
+    <script>
+    async function toggleCrawlerFromHeader() {
+        const dot = document.getElementById('crawlerDot');
+        const label = document.getElementById('crawlerLabel');
+        try {
+            const res = await API.toggleGlobalCrawler();
+            if (dot) dot.style.background = res.enabled ? 'var(--green)' : 'var(--red)';
+            if (label) label.textContent = res.enabled ? 'Crawler ON' : 'Crawler OFF';
+            Toast.success(res.enabled ? 'Crawler enabled' : 'Crawler disabled');
+        } catch (e) { Toast.error('Failed: ' + e.message); }
+    }
+    </script>
 </body>
 </html>

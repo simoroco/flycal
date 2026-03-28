@@ -287,7 +287,7 @@ def send_crawl_recap(search_id: int):
 
 
 def send_alert_email(pin, airline, alerts_triggered, current_price, previous_price, settings=None):
-    """Send a price alert email for a pinned flight."""
+    """Send a price alert email for a tracked flight."""
     if settings is None:
         settings = _get_settings()
 
@@ -358,7 +358,7 @@ def send_alert_email(pin, airline, alerts_triggered, current_price, previous_pri
             </ul>
 
             <hr style="border-color: rgba(255,255,255,0.1);">
-            <p><a href="http://{server_hostname}:4444/pins.html" style="color: #6c63ff;">Voir mes vols épinglés →</a></p>
+            <p><a href="http://{server_hostname}:4444/tracks.html" style="color: #6c63ff;">Voir mes vols suivis →</a></p>
         </div>
     </body>
     </html>

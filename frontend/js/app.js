@@ -11,7 +11,7 @@ let airlinesList = [];
 let isSearching = false;
 let searchTimerInterval = null;
 let searchStartTime = null;
-let pinnedFlightKeys = {}; // key -> pin_id
+let trackedFlightKeys = {}; // key -> track_id
 
 // ── Init ──
 async function init() {
@@ -24,7 +24,7 @@ async function init() {
         loadSettingsForApp(),
     ]);
     handleUrlParams();
-    await loadPinnedFlightKeys();
+    await loadTrackedFlightKeys();
     // Always load last search info (dates, airports, etc.)
     await loadLastSearchInfo();
     // Check if a background search is still running
@@ -522,30 +522,22 @@ async function loadCityList() {
 
 // ── Crawler toggle from header ──
 async function toggleCrawlerFromHeader() {
+    // Immediate visual feedback
+    const dot = document.getElementById('crawlerDot');
+    const label = document.getElementById('crawlerLabel');
+    const wasDotBg = dot ? dot.style.background : '';
+    const wasLabel = label ? label.textContent : '';
     try {
-        const result = await API.toggleCrawler();
-        await loadCrawlerStatus();
-        await showCrawlerToggleNotification(result.enabled);
+        const res = await API.toggleGlobalCrawler();
+        if (dot) dot.style.background = res.enabled ? 'var(--green)' : 'var(--red)';
+        if (label) label.textContent = res.enabled ? 'Crawler ON' : 'Crawler OFF';
+        Toast.success(res.enabled ? 'Crawler enabled' : 'Crawler disabled');
     } catch (e) {
+        // Rollback on error
+        if (dot) dot.style.background = wasDotBg;
+        if (label) label.textContent = wasLabel;
         Toast.error('Failed to toggle crawler: ' + e.message);
     }
-}
-
-async function showCrawlerToggleNotification(enabled) {
-    try {
-        const status = await API.getCrawlerStatus();
-        const target = status.target_search;
-        let msg = enabled ? 'Crawler enabled' : 'Crawler disabled';
-        if (enabled && target) {
-            msg += ` for ${(target.origin_city||'').toUpperCase()} → ${(target.destination_city||'').toUpperCase()}`;
-            if (status.next_run) {
-                const next = fmtDT(status.next_run);
-                msg += ` — Next run: ${next}`;
-            }
-        }
-        if (enabled) Toast.success(msg, 6000);
-        else Toast.info(msg);
-    } catch(e) {}
 }
 
 async function loadCrawlerStatus() {
@@ -934,7 +926,7 @@ function renderDayFlights(flights, direction, isDimmed) {
         html += `<div class="flight-row color-${color}${isSelected ? ' selected' : ''}${isDimmed ? ' dim' : ''}"
                       data-flight-id="${f.id}"
                       onclick="handleFlightClick(${f.id}, '${direction}')"
-                      ondblclick="handleFlightPin(${f.id}, '${direction}', event)"
+                      ondblclick="handleFlightTrack(${f.id}, '${direction}', event)"
                       oncontextmenu="showFlightContextMenu(event, ${f.id}, '${direction}')"
                       onmouseenter="showPriceHistory(this, ${f.id})"
                       onmouseleave="hidePriceHistory(this)">`;
@@ -952,9 +944,9 @@ function renderDayFlights(flights, direction, isDimmed) {
         }
         html += `<span class="flight-row-airports">${f.origin_airport || '???'}→${f.destination_airport || '???'}</span>`;
 
-        const pinKey = flightPinKey(f);
-        const isPinned = !!pinnedFlightKeys[pinKey];
-        html += `<span class="flight-row-pin">${isPinned ? '📌' : ''}</span>`;
+        const trackKey = flightTrackKey(f);
+        const isTracked = !!trackedFlightKeys[trackKey];
+        html += `<span class="flight-row-track">${isTracked ? '📌' : ''}</span>`;
 
         const rawPrice = f.price;
         const fixedFees = f.airline_fees_fixed || 0;
@@ -1020,44 +1012,44 @@ function handleFlightClick(flightId, direction) {
     renderFlights();
 }
 
-// ── Pin functions ──
-function flightPinKey(f) {
+// ── Track functions ──
+function flightTrackKey(f) {
     return `${f.airline_id}|${f.direction}|${f.flight_date}|${f.departure_time}|${f.origin_airport}|${f.destination_airport}`;
 }
 
-async function loadPinnedFlightKeys() {
+async function loadTrackedFlightKeys() {
     try {
-        const pins = await API.getPins();
-        pinnedFlightKeys = {};
-        for (const p of pins) {
+        const tracks = await API.getTracks();
+        trackedFlightKeys = {};
+        for (const p of tracks) {
             const key = `${p.airline_id}|${p.direction}|${p.flight_date}|${p.departure_time}|${p.origin_airport}|${p.destination_airport}`;
-            pinnedFlightKeys[key] = p.id;
+            trackedFlightKeys[key] = p.id;
         }
     } catch (e) {
-        console.error('Failed to load pins:', e);
-        pinnedFlightKeys = {};
+        console.error('Failed to load tracks:', e);
+        trackedFlightKeys = {};
     }
 }
 
-async function handleFlightPin(flightId, direction, event) {
+async function handleFlightTrack(flightId, direction, event) {
     if (event) event.stopPropagation();
     const flight = allFlights.find(f => f.id === flightId);
     if (!flight) return;
-    const key = flightPinKey(flight);
+    const key = flightTrackKey(flight);
 
     try {
-        if (pinnedFlightKeys[key]) {
-            await API.deletePin(pinnedFlightKeys[key]);
-            delete pinnedFlightKeys[key];
-            Toast.info('Flight unpinned');
+        if (trackedFlightKeys[key]) {
+            await API.deleteTrack(trackedFlightKeys[key]);
+            delete trackedFlightKeys[key];
+            Toast.info('Flight untracked');
         } else {
-            const result = await API.createPin(flight);
-            pinnedFlightKeys[key] = result.id;
-            Toast.success('Flight pinned 📌');
+            const result = await API.createTrack(flight);
+            trackedFlightKeys[key] = result.id;
+            Toast.success('Flight tracked');
         }
         renderFlights();
     } catch (e) {
-        Toast.error('Pin error: ' + e.message);
+        Toast.error('Track error: ' + e.message);
     }
     const menu = document.getElementById('flightContextMenu');
     if (menu) menu.remove();
@@ -1068,8 +1060,8 @@ function showFlightContextMenu(event, flightId, direction) {
     event.stopPropagation();
     const flight = allFlights.find(f => f.id === flightId);
     if (!flight) return;
-    const key = flightPinKey(flight);
-    const isPinned = !!pinnedFlightKeys[key];
+    const key = flightTrackKey(flight);
+    const isTracked = !!trackedFlightKeys[key];
 
     const old = document.getElementById('flightContextMenu');
     if (old) old.remove();
@@ -1077,7 +1069,7 @@ function showFlightContextMenu(event, flightId, direction) {
     const menu = document.createElement('div');
     menu.id = 'flightContextMenu';
     menu.className = 'flight-context-menu';
-    menu.innerHTML = `<div class="ctx-item" onclick="handleFlightPin(${flightId}, '${direction}', event)">${isPinned ? '📌 Unpin' : '📌 Pin'}</div>`;
+    menu.innerHTML = `<div class="ctx-item" onclick="handleFlightTrack(${flightId}, '${direction}', event)">${isTracked ? 'Untrack' : 'Track'}</div>`;
     menu.style.left = event.pageX + 'px';
     menu.style.top = event.pageY + 'px';
     document.body.appendChild(menu);

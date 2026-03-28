@@ -135,13 +135,13 @@ const API = {
         return this.post('/api/settings/smtp-test');
     },
 
-    // ── Pins ──
-    async getPins() {
-        return this.get('/api/pins');
+    // ── Tracks ──
+    async getTracks() {
+        return this.get('/api/tracks');
     },
 
-    async createPin(flight) {
-        return this.post('/api/pins', {
+    async createTrack(flight) {
+        return this.post('/api/tracks', {
             airline_id: flight.airline_id,
             direction: flight.direction,
             flight_date: flight.flight_date,
@@ -151,27 +151,53 @@ const API = {
         });
     },
 
-    async deletePin(pinId) {
-        return this.del(`/api/pins/${pinId}`);
+    async deleteTrack(trackId) {
+        return this.del(`/api/tracks/${trackId}`);
     },
 
-    async checkPinsBatch(flights) {
-        return this.post('/api/pins/check-batch', flights);
+    async checkTracksBatch(flights) {
+        return this.post('/api/tracks/check-batch', flights);
     },
 
-    async getPinPriceHistory(pinId) {
-        return this.get(`/api/pins/${pinId}/price-history`);
+    async getTrackPriceHistory(trackId) {
+        return this.get(`/api/tracks/${trackId}/price-history`);
     },
 
-    async createPinAlert(pinId, data) {
-        return this.post(`/api/pins/${pinId}/alerts`, data);
+    async createTrackAlert(trackId, data) {
+        return this.post(`/api/tracks/${trackId}/alerts`, data);
     },
 
-    async updatePinAlert(pinId, alertId, data) {
-        return this.put(`/api/pins/${pinId}/alerts/${alertId}`, data);
+    async updateTrackAlert(trackId, alertId, data) {
+        return this.put(`/api/tracks/${trackId}/alerts/${alertId}`, data);
     },
 
-    async deletePinAlert(pinId, alertId) {
-        return this.del(`/api/pins/${pinId}/alerts/${alertId}`);
+    async deleteTrackAlert(trackId, alertId) {
+        return this.del(`/api/tracks/${trackId}/alerts/${alertId}`);
+    },
+
+    // ── Automate ──
+    async getCrawlers() {
+        return this.get('/api/automate/crawlers');
+    },
+    async createCrawler(data) {
+        return this.post('/api/automate/crawlers', data);
+    },
+    async updateCrawler(id, data) {
+        return this.put(`/api/automate/crawlers/${id}`, data);
+    },
+    async deleteCrawler(id) {
+        return this.del(`/api/automate/crawlers/${id}`);
+    },
+    async runCrawler(id) {
+        return this.post(`/api/automate/crawlers/${id}/run`);
+    },
+    async toggleGlobalCrawler() {
+        return this.post('/api/automate/toggle');
+    },
+    async getAutomateStatus() {
+        return this.get('/api/automate/status');
+    },
+    async getAutomateLogs() {
+        return this.get('/api/automate/logs');
     },
 };

@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from database import init_db
 from scheduler import init_scheduler
-from routers import flights, searches, settings, crawler, airlines, pins
+from routers import flights, searches, settings, crawler, airlines, tracks, automate
 
 
 @asynccontextmanager
@@ -46,7 +46,8 @@ app.include_router(searches.router)
 app.include_router(settings.router)
 app.include_router(crawler.router)
 app.include_router(airlines.router)
-app.include_router(pins.router)
+app.include_router(tracks.router)
+app.include_router(automate.router)
 
 
 @app.get("/api/health")

@@ -116,32 +116,43 @@ class CrawlerLog(Base):
     error_msg = Column(Text, nullable=True)
     started_at = Column(DateTime, default=datetime.utcnow)
     ended_at = Column(DateTime, nullable=True)
+    crawler_id = Column(Integer, nullable=True)  # Don't use FK to avoid migration complexity
     search = relationship("Search", back_populates="crawler_logs")
 
 
-class PinnedFlight(Base):
-    __tablename__ = "pinned_flights"
+class ScheduledCrawler(Base):
+    __tablename__ = "scheduled_crawlers"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    search_id = Column(Integer, ForeignKey("searches.id"), nullable=False)
+    schedule_time = Column(Text, nullable=False)  # "04:00","07:00","14:00","18:00","23:00"
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    search = relationship("Search")
+
+
+class TrackedFlight(Base):
+    __tablename__ = "tracked_flights"
     __table_args__ = (
         # Same identity key as PriceTracker
-        # Prevents duplicate pins for the same flight
+        # Prevents duplicate tracks for the same flight
         {"sqlite_autoincrement": True},
     )
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column("pinned_flight_id", Integer, primary_key=True, autoincrement=True)
     airline_id = Column(Integer, ForeignKey("airlines.id"), nullable=False)
     direction = Column(Text, nullable=False)
     flight_date = Column(Date, nullable=False)
     departure_time = Column(Text, nullable=False)
     origin_airport = Column(Text, nullable=False)
     destination_airport = Column(Text, nullable=False)
-    pinned_at = Column(DateTime, default=datetime.utcnow)
+    tracked_at = Column("pinned_at", DateTime, default=datetime.utcnow)
     airline = relationship("Airline")
-    alerts = relationship("PriceAlert", back_populates="pinned_flight", cascade="all, delete-orphan")
+    alerts = relationship("PriceAlert", back_populates="tracked_flight", cascade="all, delete-orphan")
 
 
 class PriceAlert(Base):
-    __tablename__ = "price_alerts"
+    __tablename__ = "track_alerts"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    pinned_flight_id = Column(Integer, ForeignKey("pinned_flights.id"), nullable=False)
+    pinned_flight_id = Column(Integer, ForeignKey("tracked_flights.pinned_flight_id"), nullable=False)
     alert_type = Column(Text, nullable=False)  # "threshold", "variation", "trend_start"
     operator = Column(Text, nullable=True)      # "lt"/"gt" for threshold; "increase"/"decrease" for trend
     value = Column(Float, nullable=True)        # absolute price or percentage
@@ -150,14 +161,14 @@ class PriceAlert(Base):
     cooldown = Column(Text, default="every_scan")  # once_only, every_scan, once_per_day, once_per_week
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    pinned_flight = relationship("PinnedFlight", back_populates="alerts")
+    tracked_flight = relationship("TrackedFlight", back_populates="alerts")
     history = relationship("AlertHistory", back_populates="alert", cascade="all, delete-orphan")
 
 
 class AlertHistory(Base):
-    __tablename__ = "alert_history"
+    __tablename__ = "track_alert_history"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    price_alert_id = Column(Integer, ForeignKey("price_alerts.id"), nullable=False)
+    price_alert_id = Column(Integer, ForeignKey("track_alerts.id"), nullable=False)
     triggered_at = Column(DateTime, default=datetime.utcnow)
     price_at_trigger = Column(Float, nullable=False)
     message = Column(Text, nullable=True)
@@ -173,10 +184,49 @@ def get_db():
 
 
 def _migrate_db():
-    """Add missing columns to existing tables."""
+    """Add missing columns to existing tables and rename tables."""
     import sqlite3
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+
+    # Migrate pinned_flights -> tracked_flights (copy data if both exist, drop old)
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='pinned_flights'")
+    old_pf = cursor.fetchone()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tracked_flights'")
+    new_tf = cursor.fetchone()
+    if old_pf and new_tf:
+        # Both exist (create_all made new, old still has data) — copy data and drop old
+        cursor.execute("INSERT OR IGNORE INTO tracked_flights SELECT * FROM pinned_flights")
+        cursor.execute("DROP TABLE pinned_flights")
+        conn.commit()
+    elif old_pf and not new_tf:
+        cursor.execute("ALTER TABLE pinned_flights RENAME TO tracked_flights")
+        conn.commit()
+
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='price_alerts'")
+    old_pa = cursor.fetchone()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='track_alerts'")
+    new_ta = cursor.fetchone()
+    if old_pa and new_ta:
+        cursor.execute("INSERT OR IGNORE INTO track_alerts SELECT * FROM price_alerts")
+        cursor.execute("DROP TABLE price_alerts")
+        conn.commit()
+    elif old_pa and not new_ta:
+        cursor.execute("ALTER TABLE price_alerts RENAME TO track_alerts")
+        conn.commit()
+
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='alert_history'")
+    old_ah = cursor.fetchone()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='track_alert_history'")
+    new_tah = cursor.fetchone()
+    if old_ah and new_tah:
+        cursor.execute("INSERT OR IGNORE INTO track_alert_history SELECT * FROM alert_history")
+        cursor.execute("DROP TABLE alert_history")
+        conn.commit()
+    elif old_ah and not new_tah:
+        cursor.execute("ALTER TABLE alert_history RENAME TO track_alert_history")
+        conn.commit()
+
     # Add logo_url to airlines if missing
     cursor.execute("PRAGMA table_info(airlines)")
     cols = {row[1] for row in cursor.fetchall()}
@@ -209,6 +259,14 @@ def _migrate_db():
         for name, url in defaults.items():
             cursor.execute("UPDATE airlines SET logo_url = ? WHERE name = ?", (url, name))
         conn.commit()
+
+    # Add crawler_id to crawler_logs if missing
+    cursor.execute("PRAGMA table_info(crawler_logs)")
+    log_cols = {row[1] for row in cursor.fetchall()}
+    if "crawler_id" not in log_cols:
+        cursor.execute("ALTER TABLE crawler_logs ADD COLUMN crawler_id INTEGER")
+        conn.commit()
+
     conn.close()
 
 
