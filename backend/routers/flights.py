@@ -148,9 +148,19 @@ def get_running_search(db: Session = Depends(get_db)):
         airlines_list = json.loads(search.airlines)
     except (json.JSONDecodeError, TypeError):
         pass
+    # Get started_at from the most recent running CrawlerLog for this search
+    log = (
+        db.query(CrawlerLog)
+        .filter(CrawlerLog.search_id == rid, CrawlerLog.status == "running")
+        .order_by(CrawlerLog.started_at.desc())
+        .first()
+    )
+    started_at = (log.started_at.isoformat() + "Z") if log and log.started_at else None
+
     return {
         "running": True,
         "search_id": rid,
+        "started_at": started_at,
         "search": {
             "id": search.id,
             "origin_city": search.origin_city,

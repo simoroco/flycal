@@ -222,6 +222,25 @@ async function checkForBackgroundSearch() {
             if (progressText) progressText.textContent = `${origin} → ${dest} | ${data.date_from || ''} → ${data.date_to || ''}`;
 
             showSearchingState();
+
+            // Resume timer from actual server-side start time instead of resetting to 0
+            if (status.started_at) {
+                stopSearchTimer();
+                const startedAtStr = status.started_at.endsWith('Z') ? status.started_at : status.started_at + 'Z';
+                searchStartTime = new Date(startedAtStr).getTime();
+                const timerEl = document.getElementById('searchTimer');
+                const estimateEl = document.getElementById('searchEstimate');
+                if (estimateEl) estimateEl.textContent = '';
+                if (searchTimerInterval) clearInterval(searchTimerInterval);
+                searchTimerInterval = setInterval(() => {
+                    if (!searchStartTime || !timerEl) return;
+                    const elapsed = Math.floor((Date.now() - searchStartTime) / 1000);
+                    const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                    const ss = String(elapsed % 60).padStart(2, '0');
+                    timerEl.textContent = `⏱ ${mm}:${ss}`;
+                }, 1000);
+            }
+
             startPolling(data.id);
             console.log(`[FlyCal] Resumed polling for background search #${data.id}`);
         }
