@@ -58,6 +58,9 @@
         .log-action.running, .log-action.started { color: var(--accent); }
         .log-action.cancelled, .log-action.skipped, .log-action.updated { color: var(--text-muted); }
         .log-msg { color: var(--text-muted); }
+        .btn-sm { padding: 4px 10px; border-radius: 4px; font-size: 0.72rem; cursor: pointer; border: none; font-weight: 600; }
+        .btn-danger { background: rgba(220,50,50,0.15); color: var(--red); }
+        .btn-danger:hover { background: rgba(220,50,50,0.25); }
     </style>
 </head>
 <body>
@@ -87,6 +90,7 @@
     <main class="page-content logs-page">
         <div class="logs-header">
             <h1 class="page-title">Activity</h1>
+            <button class="btn-sm btn-danger" onclick="clearLogs()" style="margin-left:auto">Clear all</button>
         </div>
         <div class="logs-full" id="logsContainer"></div>
     </main>
@@ -140,6 +144,16 @@
         if (!iso) return '';
         const d = new Date(iso);
         return d.toLocaleString('sv-SE', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }).replace(',', '');
+    }
+
+    async function clearLogs() {
+        Toast.confirm('Clear all activity logs?', async () => {
+            try {
+                await API.del('/api/automate/logs');
+                document.getElementById('logsContainer').innerHTML = '<div style="color:var(--text-muted);padding:40px;text-align:center">No logs yet</div>';
+                Toast.success('Logs cleared');
+            } catch (e) { Toast.error('Failed: ' + e.message); }
+        });
     }
 
     document.addEventListener('DOMContentLoaded', init);

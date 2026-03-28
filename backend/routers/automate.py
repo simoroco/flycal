@@ -251,3 +251,12 @@ def get_automate_logs(db: Session = Depends(get_db)):
     # Sort by timestamp descending
     merged.sort(key=lambda x: x["timestamp"] or "", reverse=True)
     return merged[:200]
+
+
+@router.delete("/logs")
+def clear_automate_logs(db: Session = Depends(get_db)):
+    from database import ActivityLog
+    activity_count = db.query(ActivityLog).delete()
+    crawler_count = db.query(CrawlerLog).delete()
+    db.commit()
+    return {"ok": True, "deleted": activity_count + crawler_count}
